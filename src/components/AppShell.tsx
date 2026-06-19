@@ -30,12 +30,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/auth/me");
       const data = (await res.json()) as MeResponse;
 
-      if (data.reason === "SESSION_REPLACED") {
-        router.push("/login?reason=other_device");
+      if (data.user) {
+        setUser(data.user);
         return;
       }
 
-      setUser(data.user);
+      setUser(null);
+
+      if (data.reason === "SESSION_REPLACED" || data.reason === "INVALID_TOKEN") {
+        await fetch("/api/auth/logout", { method: "POST" });
+        const params = new URLSearchParams();
+        if (data.reason === "SESSION_REPLACED") {
+          params.set("reason", "other_device");
+        }
+        router.replace(`/login${params.toString() ? `?${params}` : ""}`);
+      }
     } catch {
       setUser(null);
     }
@@ -105,21 +114,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <span className="hidden sm:inline">{label}</span>
                   </Link>
                 ))}
-                {user && (
-                  <div className="ml-2 flex items-center gap-2 border-l border-white/10 pl-2">
+                <div className="ml-2 flex items-center gap-2 border-l border-white/10 pl-2">
+                  {user && (
                     <span className="hidden max-w-[140px] truncate text-xs text-zinc-500 md:inline">
                       {user.email}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => void logout()}
-                      title="Sair"
-                      className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
-                    >
-                      <LogOut className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void logout()}
+                    title="Sair"
+                    className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span className="hidden sm:inline">Sair</span>
+                  </button>
+                </div>
               </nav>
             </div>
           </header>

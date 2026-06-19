@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Disc3, Loader2, LogIn } from "lucide-react";
 
 function LoginForm() {
@@ -21,6 +21,18 @@ function LoginForm() {
         ? "Sua conta ainda não foi aprovada pelo administrador."
         : null,
   );
+
+  useEffect(() => {
+    if (otherDevice) return;
+    void fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d: { user?: { email: string } | null }) => {
+        if (d.user) {
+          router.replace(from.startsWith("/login") ? "/" : from);
+        }
+      })
+      .catch(() => {});
+  }, [otherDevice, from, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

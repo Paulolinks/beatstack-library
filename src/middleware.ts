@@ -26,9 +26,6 @@ export async function middleware(request: NextRequest) {
   const isApi = pathname.startsWith("/api/");
 
   if (isPublicPath(pathname)) {
-    if (pathname === "/login" && session?.approved) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
     return NextResponse.next();
   }
 

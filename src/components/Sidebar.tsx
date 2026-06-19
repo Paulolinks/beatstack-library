@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
   Library,
   Search,
@@ -11,6 +12,7 @@ import {
   Download,
   Disc3,
   Settings2,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +34,17 @@ const ADMIN = [{ href: "/admin/packs", label: "Gerenciar packs", icon: Settings2
 export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const nav = isAdmin ? [...NAV, ...ADMIN_NAV] : NAV;
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function logout() {
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login";
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -118,6 +131,18 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
           </>
         )}
       </nav>
+
+      <div className="border-t border-white/10 p-2">
+        <button
+          type="button"
+          onClick={() => void logout()}
+          disabled={loggingOut}
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-50"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {loggingOut ? "Saindo..." : "Sair"}
+        </button>
+      </div>
     </aside>
   );
 }
