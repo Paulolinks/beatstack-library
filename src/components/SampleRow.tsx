@@ -7,18 +7,15 @@ import { useSamplePeaks } from "@/hooks/useSamplePeaks";
 import { useSampleMeta } from "@/hooks/useSampleMeta";
 import { Waveform } from "./Waveform";
 import { StarRating } from "./StarRating";
-import {
-  cn,
-  formatDuration,
-  formatKey,
-  parseTagsJson,
-} from "@/lib/utils";
-import { useState } from "react";
+import { cn, formatDuration, formatKey, parseTagsJson } from "@/lib/utils";
+import { resolveSampleBpm, resolveSampleKey } from "@/lib/sample-metadata";
+import { useMemo, useState } from "react";
 
 export interface SampleListItem {
   id: string;
   displayName: string;
   fileName: string;
+  relativePath?: string;
   durationMs: number | null;
   type: string | null;
   instrument: string | null;
@@ -44,11 +41,9 @@ export interface SampleListItem {
 export function SampleRow({
   sample,
   onMetaChange,
-  showPackCover = true,
 }: {
   sample: SampleListItem;
   onMetaChange?: () => void;
-  showPackCover?: boolean;
 }) {
   const { currentSample, isPlaying, progress, toggle, seek } = useAudioPlayer();
   const { peaks } = useSamplePeaks(sample.id, sample.waveformPeaks);
@@ -64,15 +59,21 @@ export function SampleRow({
   const tags = buildTags(sample);
   const coverUrl = sample.pack.coverPath ? `/api/covers/${sample.pack.id}` : null;
 
+  const bpm = useMemo(
+    () => resolveSampleBpm(sample.bpm, sample.fileName, sample.relativePath),
+    [sample.bpm, sample.fileName, sample.relativePath],
+  );
+  const key = useMemo(
+    () => resolveSampleKey(sample.key, sample.fileName, sample.relativePath),
+    [sample.key, sample.fileName, sample.relativePath],
+  );
+
   async function handleCopyToDaw() {
     try {
       const res = await fetch(`/api/samples/${sample.id}/copy`, { method: "POST" });
       const data = (await res.json()) as { path?: string; error?: string };
       if (!res.ok) throw new Error(data.error);
-
-      if (data.path) {
-        await navigator.clipboard.writeText(data.path);
-      }
+      if (data.path) await navigator.clipboard.writeText(data.path);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -81,102 +82,102 @@ export function SampleRow({
   }
 
   return (
-    <div
+    <tr
       className={cn(
-        "group grid grid-cols-[auto_auto_minmax(0,1fr)_minmax(120px,180px)_48px_56px_48px_auto] items-center gap-3 border-b border-white/[0.06] px-3 py-2 transition",
+        "group border-b border-white/[0.06] transition",
         isCurrent ? "bg-sky-950/30" : "hover:bg-white/[0.03]",
       )}
     >
-      {showPackCover && (
-        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded bg-zinc-800">
+      <td className="px-2 py-2 align-middle">
+        <div className="relative mx-auto h-10 w-10 overflow-hidden rounded bg-zinc-800">
           {coverUrl ? (
             <Image src={coverUrl} alt="" fill className="object-cover" unoptimized />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-600">
+            <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-600">
               PACK
             </div>
           )}
         </div>
-      )}
+      </td>
 
-      <button
-        type="button"
-        onClick={() => toggle(sample)}
-        className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition",
-          playing
-            ? "bg-sky-500 text-white"
-            : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700",
-        )}
-      >
-        {playing ? (
-          <Pause className="h-3.5 w-3.5" />
-        ) : (
-          <Play className="ml-0.5 h-3.5 w-3.5" />
-        )}
-      </button>
+      <td className="px-1 py-2 align-middle">
+        <button
+          type="button"
+          onClick={() => toggle(sample)}
+          className={cn(
+            "mx-auto flex h-8 w-8 items-center justify-center rounded-full transition",
+            playing ? "bg-sky-500 text-white" : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700",
+          )}
+        >
+          {playing ? (
+            <Pause className="h-3.5 w-3.5" />
+          ) : (
+            <Play className="ml-0.5 h-3.5 w-3.5" />
+          )}
+        </button>
+      </td>
 
-      <div className="min-w-0">
+      <td className="px-2 py-2 align-middle">
         <p className="truncate text-sm font-medium text-zinc-100">{sample.fileName}</p>
-        <div className="mt-0.5 flex flex-wrap gap-1">
+        <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0">
           {tags.map((tag) => (
             <span key={tag} className="text-[11px] text-zinc-500">
               #{tag}
             </span>
           ))}
         </div>
-      </div>
+      </td>
 
-      <Waveform
-        peaks={peaks}
-        progress={isCurrent ? progress : 0}
-        playing={playing}
-        interactive={isCurrent}
-        onSeek={isCurrent ? seek : undefined}
-        className="hidden sm:flex"
-        barClassName="bg-zinc-600 group-hover:bg-zinc-500"
-        activeBarClassName="bg-sky-400"
-      />
-
-      <span className="text-right text-xs tabular-nums text-zinc-400">
-        {formatDuration(sample.durationMs)}
-      </span>
-
-      <span className="text-right text-xs text-zinc-400">{formatKey(sample.key)}</span>
-
-      <span className="text-right text-xs tabular-nums text-zinc-400">
-        {sample.bpm ?? "—"}
-      </span>
-
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          title="Copiar para pasta DAW"
-          onClick={() => void handleCopyToDaw()}
-          className={cn(
-            "rounded p-1.5 transition",
-            copied ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200",
-          )}
-        >
-          {copied ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-        </button>
-        <button
-          type="button"
-          title="Favorito"
-          onClick={() => updateMeta({ favorite: !favorite })}
-          className={cn(
-            "rounded p-1.5 transition",
-            favorite ? "text-rose-400" : "text-zinc-500 hover:text-rose-400",
-          )}
-        >
-          <Heart className={cn("h-4 w-4", favorite && "fill-current")} />
-        </button>
-        <StarRating
-          value={rating}
-          onChange={(r) => updateMeta({ rating: r })}
+      <td className="px-2 py-2 align-middle">
+        <Waveform
+          peaks={peaks}
+          progress={isCurrent ? progress : 0}
+          playing={playing}
+          interactive={isCurrent}
+          onSeek={isCurrent ? seek : undefined}
         />
-      </div>
-    </div>
+      </td>
+
+      <td className="px-2 py-2 text-right align-middle text-xs tabular-nums text-zinc-400">
+        {formatDuration(sample.durationMs)}
+      </td>
+
+      <td className="px-2 py-2 text-right align-middle text-xs text-zinc-400">
+        {formatKey(key)}
+      </td>
+
+      <td className="px-2 py-2 text-right align-middle text-xs tabular-nums text-zinc-400">
+        {bpm ?? "—"}
+      </td>
+
+      <td className="px-2 py-2 align-middle">
+        <div className="flex items-center justify-end gap-0.5">
+          <button
+            type="button"
+            title="Copiar para pasta DAW"
+            onClick={() => void handleCopyToDaw()}
+            className={cn(
+              "rounded p-1.5 transition",
+              copied ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200",
+            )}
+          >
+            {copied ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            title="Favorito"
+            onClick={() => updateMeta({ favorite: !favorite })}
+            className={cn(
+              "rounded p-1.5 transition",
+              favorite ? "text-rose-400" : "text-zinc-500 hover:text-rose-400",
+            )}
+          >
+            <Heart className={cn("h-4 w-4", favorite && "fill-current")} />
+          </button>
+          <StarRating value={rating} onChange={(r) => updateMeta({ rating: r })} />
+        </div>
+      </td>
+    </tr>
   );
 }
 

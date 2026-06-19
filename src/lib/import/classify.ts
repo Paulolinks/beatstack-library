@@ -53,15 +53,7 @@ const GENRE_RULES: Array<{ pattern: RegExp; value: string; tag: string }> = [
   { pattern: /\bedm\b|\belectronic\b/i, value: "edm", tag: "edm" },
 ];
 
-const KEY_PATTERN =
-  /\b([A-G][#b]?)\s*(maj(or)?|min(or)?|m(?!\w)|maj|min)\b|\b([A-G][#b]?m)\b|\b([A-G][#b]?)\s*_(maj|min|major|minor)\b/i;
-
-const BPM_PATTERNS = [
-  /\b(\d{2,3})\s*bpm\b/i,
-  /\bbpm\s*(\d{2,3})\b/i,
-  /\b_(\d{2,3})bpm\b/i,
-  /\b-(\d{2,3})-\b/,
-];
+import { parseBpmKeyFromText } from "@/lib/sample-metadata";
 
 function matchFirst(
   text: string,
@@ -78,35 +70,15 @@ function matchFirst(
   return { value, tags };
 }
 
-function extractBpm(text: string): number | null {
-  for (const pattern of BPM_PATTERNS) {
-    const match = text.match(pattern);
-    if (match?.[1]) {
-      const bpm = parseInt(match[1], 10);
-      if (bpm >= 40 && bpm <= 999) return bpm;
-    }
-  }
-  return null;
-}
-
-function extractKey(text: string): string | null {
-  const match = text.match(KEY_PATTERN);
-  if (!match) return null;
-  if (match[4]) return match[4];
-  const note = match[1] || match[5];
-  const quality = match[2] || match[6] || "";
-  if (!note) return null;
-  const isMinor = /min|m/i.test(quality) && !/maj/i.test(quality);
-  return isMinor ? `${note}m` : note;
-}
-
 export function classifySample(relativePath: string, fileName: string): ClassificationResult {
-  const text = `${relativePath} ${fileName}`.replace(/\\/g, "/").toLowerCase();
+  const text = `${relativePath} ${fileName}`.replace(/\\/g, "/");
+  const textLower = text.toLowerCase();
 
-  const typeResult = matchFirst(text, TYPE_RULES);
-  const instrumentResult = matchFirst(text, INSTRUMENT_RULES);
-  const categoryResult = matchFirst(text, CATEGORY_RULES);
-  const genreResult = matchFirst(text, GENRE_RULES);
+  const typeResult = matchFirst(textLower, TYPE_RULES);
+  const instrumentResult = matchFirst(textLower, INSTRUMENT_RULES);
+  const categoryResult = matchFirst(textLower, CATEGORY_RULES);
+  const genreResult = matchFirst(textLower, GENRE_RULES);
+  const { bpm, key } = parseBpmKeyFromText(text);
 
   const tags = [
     ...new Set([
@@ -122,8 +94,8 @@ export function classifySample(relativePath: string, fileName: string): Classifi
     instrument: instrumentResult.value,
     category: categoryResult.value,
     genre: genreResult.value,
-    bpm: extractBpm(text),
-    key: extractKey(relativePath + " " + fileName),
+    bpm,
+    key,
     tags,
   };
 }

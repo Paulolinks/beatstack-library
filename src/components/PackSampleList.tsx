@@ -4,7 +4,10 @@ import { useMemo, useState } from "react";
 import { SampleTable } from "@/components/SampleTable";
 import type { SampleListItem } from "@/components/SampleRow";
 
-type InitialSample = Omit<SampleListItem, "pack"> & { type: string | null };
+type InitialSample = Omit<SampleListItem, "pack"> & {
+  type: string | null;
+  relativePath: string;
+};
 
 export function PackSampleList({
   initialSamples,
@@ -19,6 +22,7 @@ export function PackSampleList({
   const samples = useMemo(() => {
     const mapped: SampleListItem[] = initialSamples.map((s) => ({
       ...s,
+      relativePath: s.relativePath,
       pack: {
         id: pack.id,
         name: pack.name,

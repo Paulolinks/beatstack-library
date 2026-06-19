@@ -36,10 +36,11 @@ export function formatDuration(ms: number | null | undefined): string {
 
 export function formatKey(key: string | null | undefined): string {
   if (!key) return "—";
-  if (/m$/i.test(key) && key.length <= 3) {
-    return `${key.slice(0, -1)} min`;
+  if (/m$/i.test(key) && key.length <= 4 && !key.includes(" ")) {
+    const note = key.slice(0, -1);
+    return `${note} min`;
   }
-  if (/min/i.test(key)) return key.replace(/min/i, "min");
+  if (/min/i.test(key)) return key.replace(/minor/i, "min").replace(/min/i, "min");
   return `${key} maj`;
 }
 

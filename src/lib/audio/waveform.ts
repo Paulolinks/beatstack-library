@@ -1,6 +1,6 @@
 import fs from "fs";
 
-const BARS = 128;
+const BARS = 200;
 
 export function extractWaveformPeaks(filePath: string, bars = BARS): number[] {
   const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
@@ -58,6 +58,8 @@ function extractWavPeaks(filePath: string, bars: number): number[] {
 
   for (let i = 0; i < bars; i++) {
     let peak = 0;
+    let sumSquares = 0;
+    let count = 0;
     const startFrame = i * blockSize;
     const endFrame = Math.min(startFrame + blockSize, totalFrames);
 
@@ -83,10 +85,14 @@ function extractWavPeaks(filePath: string, bars: number): number[] {
         value = (buffer[sampleOffset] - 128) / 128;
       }
 
-      peak = Math.max(peak, Math.abs(value));
+      const abs = Math.abs(value);
+      peak = Math.max(peak, abs);
+      sumSquares += abs * abs;
+      count++;
     }
 
-    peaks.push(peak);
+    const rms = count > 0 ? Math.sqrt(sumSquares / count) : 0;
+    peaks.push(peak * 0.65 + rms * 0.35);
   }
 
   const maxPeak = Math.max(...peaks, 0.001);

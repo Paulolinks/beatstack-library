@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 export function Waveform({
@@ -9,8 +10,7 @@ export function Waveform({
   interactive = false,
   onSeek,
   className,
-  barClassName,
-  activeBarClassName,
+  height = 28,
 }: {
   peaks: number[];
   progress?: number;
@@ -18,25 +18,35 @@ export function Waveform({
   interactive?: boolean;
   onSeek?: (ratio: number) => void;
   className?: string;
-  barClassName?: string;
-  activeBarClassName?: string;
+  height?: number;
 }) {
-  const displayPeaks =
-    peaks.length > 0
-      ? peaks
-      : Array.from({ length: 64 }, (_, i) => 0.2 + Math.abs(Math.sin(i * 0.3)) * 0.3);
+  const svgRef = useRef<SVGSVGElement>(null);
 
-  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (!interactive || !onSeek) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+  const displayPeaks = useMemo(() => {
+    if (peaks.length >= 32) return peaks;
+    return Array.from({ length: 96 }, (_, i) => 0.08 + Math.abs(Math.sin(i * 0.22)) * 0.35);
+  }, [peaks]);
+
+  const barCount = displayPeaks.length;
+  const width = barCount * 3;
+
+  function handleClick(e: React.MouseEvent<SVGSVGElement>) {
+    if (!interactive || !onSeek || !svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
     onSeek(ratio);
   }
 
+  const centerY = height / 2;
+  const progressX = progress * width;
+
   return (
-    <div
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
       className={cn(
-        "flex h-7 items-end gap-[1px]",
+        "h-7 w-full min-w-[120px]",
         interactive && "cursor-pointer",
         className,
       )}
@@ -44,21 +54,24 @@ export function Waveform({
       role={interactive ? "slider" : undefined}
     >
       {displayPeaks.map((peak, i) => {
-        const pct = i / displayPeaks.length;
-        const active = playing && pct <= progress;
+        const barW = Math.max(1.5, width / barCount - 0.5);
+        const x = (i / barCount) * width;
+        const amplitude = Math.max(0.06, peak) * (height / 2 - 1);
+        const barCenter = x + barW / 2;
+        const played = playing && barCenter <= progressX;
+
         return (
-          <div
+          <rect
             key={i}
-            className={cn(
-              "min-w-[2px] flex-1 rounded-[1px] transition-colors",
-              active
-                ? activeBarClassName ?? "bg-sky-400"
-                : barClassName ?? "bg-zinc-600",
-            )}
-            style={{ height: `${Math.max(12, peak * 100)}%` }}
+            x={x}
+            y={centerY - amplitude}
+            width={barW}
+            height={amplitude * 2}
+            rx={0.5}
+            className={played ? "fill-sky-400" : "fill-zinc-500"}
           />
         );
       })}
-    </div>
+    </svg>
   );
 }

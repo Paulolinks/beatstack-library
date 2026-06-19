@@ -11,16 +11,16 @@ export function useSamplePeaks(sampleId: string, storedPeaksJson: string | null)
   const [peaks, setPeaks] = useState<number[]>(() =>
     parseWaveformPeaks(storedPeaksJson),
   );
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!sampleId) return;
+
     const stored = parseWaveformPeaks(storedPeaksJson);
     setPeaks(stored);
 
-    if (stored.length > 0 && !isLikelyFakePeaks(stored)) return;
+    if (stored.length >= 64 && !isLikelyFakePeaks(stored)) return;
 
     let cancelled = false;
-    setLoading(true);
 
     extractPeaksFromAudioUrl(`/api/audio/${sampleId}`)
       .then(async (realPeaks) => {
@@ -34,9 +34,6 @@ export function useSamplePeaks(sampleId: string, storedPeaksJson: string | null)
       })
       .catch(() => {
         if (!cancelled && stored.length > 0) setPeaks(stored);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
       });
 
     return () => {
@@ -44,5 +41,5 @@ export function useSamplePeaks(sampleId: string, storedPeaksJson: string | null)
     };
   }, [sampleId, storedPeaksJson]);
 
-  return { peaks, loading };
+  return { peaks };
 }

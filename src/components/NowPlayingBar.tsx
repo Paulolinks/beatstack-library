@@ -8,19 +8,38 @@ import { useSampleMeta } from "@/hooks/useSampleMeta";
 import { Waveform } from "./Waveform";
 import { StarRating } from "./StarRating";
 import { cn, formatDuration, formatKey, parseTagsJson } from "@/lib/utils";
-import { useState } from "react";
+import { resolveSampleBpm, resolveSampleKey } from "@/lib/sample-metadata";
+import { useMemo, useState } from "react";
 
-export function NowPlayingBar() {
+function NowPlayingBarContent() {
   const { currentSample, isPlaying, progress, toggle, seek } = useAudioPlayer();
-
-  if (!currentSample) return null;
-
-  const { peaks } = useSamplePeaks(currentSample.id, currentSample.waveformPeaks);
+  const sampleId = currentSample?.id ?? "";
+  const { peaks } = useSamplePeaks(sampleId, currentSample?.waveformPeaks ?? null);
   const { rating, favorite, updateMeta } = useSampleMeta(
-    currentSample.id,
-    currentSample.meta,
+    sampleId,
+    currentSample?.meta ?? null,
   );
   const [copied, setCopied] = useState(false);
+
+  const bpm = useMemo(() => {
+    if (!currentSample) return null;
+    return resolveSampleBpm(
+      currentSample.bpm,
+      currentSample.fileName,
+      currentSample.relativePath,
+    );
+  }, [currentSample]);
+
+  const key = useMemo(() => {
+    if (!currentSample) return null;
+    return resolveSampleKey(
+      currentSample.key,
+      currentSample.fileName,
+      currentSample.relativePath,
+    );
+  }, [currentSample]);
+
+  if (!currentSample) return null;
 
   const coverUrl = currentSample.pack.coverPath
     ? `/api/covers/${currentSample.pack.id}`
@@ -47,7 +66,7 @@ export function NowPlayingBar() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-[#12121a]/98 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
+      <div className="mx-auto grid max-w-7xl grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto_auto] items-center gap-4 px-4 py-3">
         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded bg-zinc-800">
           {coverUrl ? (
             <Image src={coverUrl} alt="" fill className="object-cover" unoptimized />
@@ -66,7 +85,7 @@ export function NowPlayingBar() {
           )}
         </button>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <p className="truncate text-sm font-medium">{currentSample.fileName}</p>
           <div className="flex flex-wrap gap-1">
             {tags.slice(0, 5).map((t) => (
@@ -82,20 +101,14 @@ export function NowPlayingBar() {
             interactive
             onSeek={seek}
             className="mt-1.5 max-w-xl"
-            barClassName="bg-zinc-600"
-            activeBarClassName="bg-sky-400"
           />
         </div>
 
-        <div className="hidden shrink-0 text-xs text-zinc-400 md:block">
+        <div className="shrink-0 text-xs tabular-nums text-zinc-400">
           {formatDuration(currentSample.durationMs)}
         </div>
-        <div className="hidden shrink-0 text-xs text-zinc-400 md:block">
-          {formatKey(currentSample.key)}
-        </div>
-        <div className="hidden shrink-0 text-xs tabular-nums text-zinc-400 md:block">
-          {currentSample.bpm ?? "—"}
-        </div>
+        <div className="shrink-0 text-xs text-zinc-400">{formatKey(key)}</div>
+        <div className="shrink-0 text-xs tabular-nums text-zinc-400">{bpm ?? "—"}</div>
 
         <div className="flex items-center gap-1">
           <button
@@ -124,4 +137,10 @@ export function NowPlayingBar() {
       </div>
     </div>
   );
+}
+
+export function NowPlayingBar() {
+  const { currentSample } = useAudioPlayer();
+  if (!currentSample) return null;
+  return <NowPlayingBarContent />;
 }
