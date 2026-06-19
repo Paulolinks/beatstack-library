@@ -19,6 +19,9 @@ export async function GET() {
       role: true,
       approved: true,
       createdAt: true,
+      lastLoginAt: true,
+      lastLoginDevice: true,
+      activeSessionId: true,
     },
   });
 

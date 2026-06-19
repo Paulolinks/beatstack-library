@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/get-session";
+import { getSessionResult } from "@/lib/auth/get-session";
 import { isAuthDisabled } from "@/lib/auth/session";
 
 export async function GET() {
-  const session = await getSession();
+  const { session, reason } = await getSessionResult();
+
   if (!session) {
-    return NextResponse.json({ user: null });
+    return NextResponse.json({
+      user: null,
+      reason: reason ?? null,
+    });
   }
+
   return NextResponse.json({
     user: {
       email: session.email,

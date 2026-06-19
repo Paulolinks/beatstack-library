@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeEmail, validatePassword, verifyPassword } from "@/lib/auth/password";
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, user: { email: "dev@local", role: "admin" } });
   }
 
-  let body: { email?: string; password?: string };
+  let body: { email?: string; password?: string; deviceLabel?: string };
   try {
     body = await request.json();
   } catch {
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
 
   const email = normalizeEmail(body.email ?? "");
   const password = body.password ?? "";
+  const deviceLabel = body.deviceLabel?.trim().slice(0, 120) || null;
 
   if (!email || !password) {
     return NextResponse.json({ error: "E-mail e senha são obrigatórios" }, { status: 400 });
@@ -42,11 +44,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const sessionId = randomUUID();
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      activeSessionId: sessionId,
+      lastLoginAt: new Date(),
+      lastLoginDevice: deviceLabel,
+    },
+  });
+
   const token = await signSession({
     userId: user.id,
     email: user.email,
     role: user.role,
     approved: user.approved,
+    sessionId,
   });
 
   const response = NextResponse.json({

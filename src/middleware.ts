@@ -10,6 +10,7 @@ function isPublicPath(pathname: string): boolean {
   }
   if (pathname.startsWith("/api/auth/login")) return true;
   if (pathname.startsWith("/api/auth/logout")) return true;
+  if (pathname.startsWith("/api/webhooks/register-user")) return true;
   return false;
 }
 
@@ -30,12 +31,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!session || !session.approved) {
+  if (!session || !session.approved || !session.sessionId) {
     if (isApi) {
-      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Não autenticado", reason: session ? "SESSION_REPLACED" : undefined },
+        { status: 401 },
+      );
     }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
+    if (token && !session) {
+      loginUrl.searchParams.set("reason", "other_device");
+    }
     return NextResponse.redirect(loginUrl);
   }
 

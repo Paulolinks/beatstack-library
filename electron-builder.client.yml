@@ -1,6 +1,7 @@
 appId: com.beatstack.library
 productName: BeatStack Library
 copyright: Copyright © BeatStack
+artifactName: ${productName}-Setup-${version}.${ext}
 npmRebuild: false
 nodeGypRebuild: false
 buildDependenciesFromSource: false

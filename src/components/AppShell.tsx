@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Library, LogOut, Search, Upload, Disc3, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AudioPlayerProvider } from "@/context/AudioPlayerContext";
@@ -15,18 +15,46 @@ interface AuthUser {
   role: string;
 }
 
+type MeResponse = {
+  user: AuthUser | null;
+  reason?: "SESSION_REPLACED" | "INVALID_TOKEN" | null;
+};
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
 
+  const checkSession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      const data = (await res.json()) as MeResponse;
+
+      if (data.reason === "SESSION_REPLACED") {
+        router.push("/login?reason=other_device");
+        return;
+      }
+
+      setUser(data.user);
+    } catch {
+      setUser(null);
+    }
+  }, [router]);
+
   useEffect(() => {
     if (pathname === "/login") return;
-    void fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d: { user: AuthUser | null }) => setUser(d.user))
-      .catch(() => setUser(null));
-  }, [pathname]);
+    void checkSession();
+  }, [pathname, checkSession]);
+
+  useEffect(() => {
+    if (pathname === "/login") return;
+
+    const interval = window.setInterval(() => {
+      void checkSession();
+    }, 45_000);
+
+    return () => window.clearInterval(interval);
+  }, [pathname, checkSession]);
 
   if (pathname === "/login") {
     return <>{children}</>;

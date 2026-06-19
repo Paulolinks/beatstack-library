@@ -11,6 +11,9 @@ interface UserRow {
   role: string;
   approved: boolean;
   createdAt: string;
+  lastLoginAt: string | null;
+  lastLoginDevice: string | null;
+  activeSessionId: string | null;
 }
 
 export default function AdminUsersPage() {
@@ -142,6 +145,7 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-2">Nome</th>
                 <th className="px-4 py-2">Papel</th>
                 <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2">Último login</th>
                 <th className="px-4 py-2" />
               </tr>
             </thead>
@@ -171,6 +175,19 @@ export default function AdminUsersPage() {
                     >
                       {user.approved ? "Aprovado" : "Pendente"}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-zinc-500">
+                    {user.activeSessionId ? (
+                      <span className="text-emerald-400/90">Online</span>
+                    ) : (
+                      "—"
+                    )}
+                    {user.lastLoginAt && (
+                      <div className="mt-0.5">
+                        {new Date(user.lastLoginAt).toLocaleString("pt-BR")}
+                        {user.lastLoginDevice ? ` · ${user.lastLoginDevice}` : ""}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button

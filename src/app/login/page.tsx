@@ -9,12 +9,17 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const from = searchParams.get("from") || "/";
   const pending = searchParams.get("pending") === "1";
+  const otherDevice = searchParams.get("reason") === "other_device";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(
-    pending ? "Sua conta ainda não foi aprovada pelo administrador." : null,
+    otherDevice
+      ? "Sua conta foi aberta em outro computador. Entre novamente para continuar aqui."
+      : pending
+        ? "Sua conta ainda não foi aprovada pelo administrador."
+        : null,
   );
 
   async function handleSubmit(e: React.FormEvent) {
