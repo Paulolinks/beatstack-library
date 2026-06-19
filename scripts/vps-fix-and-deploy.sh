@@ -108,10 +108,10 @@ docker compose -p beatstack -f docker-compose.traefik.yml up -d --build
 
 echo "==> Banco..."
 sleep 5
-docker compose -p beatstack exec -T app npx prisma db push
+docker compose -p beatstack exec -T app npx prisma@5.22.0 db push
 
 echo "==> Admin (pule se já existir)..."
-docker compose -p beatstack exec -T app npm run admin:create -- admin@gmail.com admin123 Admin || true
+docker compose -p beatstack exec -T app npx tsx@4.22.4 scripts/create-admin.ts admin@gmail.com admin123 Admin || true
 
 echo ""
 echo "✅ Feito. Teste: https://${DOMAIN}/login"
