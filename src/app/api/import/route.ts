@@ -48,7 +48,19 @@ async function parseCoverFile(formData: FormData) {
 export async function POST(request: NextRequest) {
   try {
     ensureStorageDirs();
-    const formData = await request.formData();
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch (parseErr) {
+      console.error("[import] formData parse", parseErr);
+      return NextResponse.json(
+        {
+          error:
+            "Arquivo muito grande ou upload incompleto. Packs acima de ~10MB precisam do servidor atualizado — tente de novo após o deploy ou use um ZIP menor.",
+        },
+        { status: 413 },
+      );
+    }
     const importType = (formData.get("importType") as string | null) ?? "archive";
     const packName = (formData.get("packName") as string | null)?.trim() || undefined;
     const producer = (formData.get("producer") as string | null)?.trim() || undefined;
