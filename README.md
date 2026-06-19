@@ -42,4 +42,29 @@ storage/          # packs importados (gitignored)
 
 ## GitHub
 
-Repositório: configure com `scripts/setup-github.ps1` após autenticar no GitHub CLI.
+Repositório local já inicializado com commit inicial. Para criar no GitHub e enviar o código:
+
+### 1. Autenticar (uma vez)
+
+```powershell
+& "$env:LOCALAPPDATA\gh-cli\bin\gh.exe" auth login
+```
+
+Escolha: GitHub.com → HTTPS → Login via browser.
+
+### 2. Criar repo e push
+
+```powershell
+cd "c:\Users\paulo\Desktop\BeatStack Library"
+.\scripts\setup-github.ps1
+```
+
+Isso cria `github.com/SEU_USUARIO/beatstack-library` (público) e faz push da branch `main`.
+
+### Commits seguintes
+
+```bash
+git add .
+git commit -m "sua mensagem"
+git push
+```
