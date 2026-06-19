@@ -1,0 +1,29 @@
+appId: com.beatstack.library
+productName: BeatStack Library
+copyright: Copyright © BeatStack
+directories:
+  output: dist-electron
+files:
+  - desktop/**/*
+  - package.json
+extraResources:
+  - from: desktop/default-server.json
+    to: default-server.json
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  publisherName: BeatStack
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: BeatStack Library
+  uninstallDisplayName: BeatStack Library
+  installerLanguages:
+    - pt_BR
+    - en_US

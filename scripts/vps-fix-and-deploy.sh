@@ -75,6 +75,8 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=root_default
+      - traefik.http.middlewares.beatstack-large.buffering.maxRequestBodyBytes=1610612736
+      - traefik.http.routers.beatstack.middlewares=beatstack-large@docker
       - traefik.http.routers.beatstack.rule=Host(\`${DOMAIN}\`)
       - traefik.http.routers.beatstack.entrypoints=${ENTRYPOINT}
       - traefik.http.routers.beatstack.tls=true

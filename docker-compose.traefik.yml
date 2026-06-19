@@ -27,10 +27,12 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=root_default
+      - traefik.http.middlewares.beatstack-large.buffering.maxRequestBodyBytes=1610612736
+      - traefik.http.routers.beatstack.middlewares=beatstack-large@docker
       - traefik.http.routers.beatstack.rule=Host(`library.srv983653.hstgr.cloud`)
       - traefik.http.routers.beatstack.entrypoints=web,websecure
       - traefik.http.routers.beatstack.tls=true
-      - traefik.http.routers.beatstack.tls.certresolver=letsencrypt
+      - traefik.http.routers.beatstack.tls.certresolver=mytlschallenge
       - traefik.http.services.beatstack.loadbalancer.server.port=3000
 
 networks:

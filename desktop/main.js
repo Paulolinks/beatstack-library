@@ -27,11 +27,29 @@ function readServerUrlFromConfig() {
   return null;
 }
 
+function readBundledServerUrl() {
+  if (!app.isPackaged) return null;
+  try {
+    const bundledPath = path.join(process.resourcesPath, "default-server.json");
+    if (!fs.existsSync(bundledPath)) return null;
+    const raw = fs.readFileSync(bundledPath, "utf-8");
+    const cfg = JSON.parse(raw);
+    if (typeof cfg.serverUrl === "string" && cfg.serverUrl.trim()) {
+      return cfg.serverUrl.trim().replace(/\/$/, "");
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 function resolveServerUrl() {
   const fromEnv = process.env.BEATSTACK_SERVER_URL?.trim();
   if (fromEnv) return fromEnv.replace(/\/$/, "");
   const fromFile = readServerUrlFromConfig();
   if (fromFile) return fromFile;
+  const fromBundled = readBundledServerUrl();
+  if (fromBundled) return fromBundled;
   return LOCAL_URL;
 }
 

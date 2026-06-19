@@ -10,9 +10,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["node-unrar-js"],
   experimental: {
     // Default 10MB — packs de 40MB+ falhavam com "Failed to parse body as FormData"
-    proxyClientMaxBodySize: "500mb",
+    proxyClientMaxBodySize: "1536mb",
     serverActions: {
-      bodySizeLimit: "500mb",
+      bodySizeLimit: "1536mb",
     },
   },
 };

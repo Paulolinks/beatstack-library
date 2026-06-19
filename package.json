@@ -18,7 +18,9 @@
     "db:push": "prisma db push",
     "admin:create": "tsx scripts/create-admin.ts",
     "postinstall": "prisma generate",
-    "pack:desktop": "npm run build && electron-builder --win"
+    "pack:desktop": "npm run build && electron-builder --win",
+    "pack:installer": "electron-builder --win --config electron-builder.client.yml",
+    "pack:desktop:client": "npm run pack:installer"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -95,6 +97,8 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
       "shortcutName": "BeatStack Library"
     }
   }
