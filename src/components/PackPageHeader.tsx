@@ -9,6 +9,7 @@ import { PackAdminEditor } from "@/components/PackAdminEditor";
 export function PackPageHeader({
   pack,
   types,
+  isAdmin = false,
 }: {
   pack: {
     id: string;
@@ -21,6 +22,7 @@ export function PackPageHeader({
     genre: string | null;
   };
   types: string[];
+  isAdmin?: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const coverUrl = pack.coverPath ? `/api/covers/${pack.id}` : null;
@@ -56,7 +58,7 @@ export function PackPageHeader({
                 {pack.genre ? ` · ${pack.genre}` : ""}
               </p>
             </div>
-            {!editOpen && (
+            {isAdmin && !editOpen && (
               <PackAdminEditor
                 packId={pack.id}
                 initialName={pack.name}
@@ -85,7 +87,7 @@ export function PackPageHeader({
         </div>
       </div>
 
-      {editOpen && (
+      {isAdmin && editOpen && (
         <div className="mb-8">
           <PackAdminEditor
             packId={pack.id}

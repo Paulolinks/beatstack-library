@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { resolveEffectiveRole } from "@/lib/auth/admin-policy";
 import { normalizeEmail, validatePassword, verifyPassword } from "@/lib/auth/password";
 import {
   getSessionCookieName,
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
   const token = await signSession({
     userId: user.id,
     email: user.email,
-    role: user.role,
+    role: resolveEffectiveRole(user.email, user.role),
     approved: user.approved,
     sessionId,
   });

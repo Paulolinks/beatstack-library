@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { assignableRole } from "@/lib/auth/admin-policy";
 import { hashPassword, normalizeEmail, validatePassword } from "@/lib/auth/password";
 
 export function generateRandomPassword(length = 12): string {
@@ -60,6 +61,7 @@ export async function registerUserFromWebhook(
         passwordHash,
         name: name ?? existing.name,
         approved,
+        role: assignableRole(email, existing.role),
       },
       select: {
         id: true,
@@ -82,7 +84,7 @@ export async function registerUserFromWebhook(
       email,
       passwordHash,
       name,
-      role: "user",
+      role: assignableRole(email, "user"),
       approved,
     },
     select: {

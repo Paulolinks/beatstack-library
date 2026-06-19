@@ -7,6 +7,7 @@ import {
   type SessionInvalidReason,
   type SessionPayload,
 } from "@/lib/auth/session";
+import { resolveEffectiveRole } from "@/lib/auth/admin-policy";
 
 export type AuthUser = SessionPayload & { name: string | null };
 
@@ -43,7 +44,7 @@ async function resolveSessionFromToken(token: string | undefined): Promise<Sessi
     session: {
       userId: user.id,
       email: user.email,
-      role: user.role,
+      role: resolveEffectiveRole(user.email, user.role),
       approved: user.approved,
       name: user.name,
       sessionId: payload.sessionId,

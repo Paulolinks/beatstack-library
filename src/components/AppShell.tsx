@@ -80,7 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AudioPlayerProvider>
       <div className="flex min-h-screen bg-[#0a0a0c] text-zinc-100">
-        <Sidebar />
+        <Sidebar isAdmin={user?.role === "admin"} />
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0a0a0c]/95 backdrop-blur">

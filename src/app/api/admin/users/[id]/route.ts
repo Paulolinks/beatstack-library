@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { assignableRole } from "@/lib/auth/admin-policy";
 import { requireAdmin } from "@/lib/auth/get-session";
 import { hashPassword, validatePassword } from "@/lib/auth/password";
 
@@ -21,6 +22,14 @@ export async function PATCH(
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
+  const existing = await prisma.user.findUnique({
+    where: { id },
+    select: { email: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
+  }
+
   const data: {
     approved?: boolean;
     role?: string;
@@ -29,7 +38,7 @@ export async function PATCH(
   } = {};
 
   if (body.approved !== undefined) data.approved = body.approved;
-  if (body.role !== undefined) data.role = body.role === "admin" ? "admin" : "user";
+  if (body.role !== undefined) data.role = assignableRole(existing.email, body.role);
   if (body.name !== undefined) data.name = body.name.trim() || null;
   if (body.password) {
     const pwdError = validatePassword(body.password);

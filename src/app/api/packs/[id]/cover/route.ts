@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth/get-session";
 import {
   fromRelativeStoragePath,
   getPackDir,
@@ -19,6 +20,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  try {
+    await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+  }
+
   const { id } = await params;
   const pack = await prisma.pack.findUnique({ where: { id } });
   if (!pack) {

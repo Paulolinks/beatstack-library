@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isAdminSession } from "@/lib/auth/admin-policy";
 import { getSessionCookieName, isAuthDisabled, verifySessionToken } from "@/lib/auth/session";
 
 const PUBLIC_PATHS = ["/login"];
@@ -49,9 +50,15 @@ export async function middleware(request: NextRequest) {
   const isAdminRoute =
     pathname.startsWith("/admin") ||
     pathname.startsWith("/api/admin") ||
-    pathname.startsWith("/api/import");
+    pathname.startsWith("/api/import") ||
+    (request.method !== "GET" &&
+      /^\/api\/packs\/[^/]+$/.test(pathname)) ||
+    (request.method === "POST" && /^\/api\/packs\/[^/]+\/cover$/.test(pathname));
 
-  if (isAdminRoute && session.role !== "admin") {
+  const hasAdminAccess =
+    session && isAdminSession(session.email, typeof session.role === "string" ? session.role : "user");
+
+  if (isAdminRoute && !hasAdminAccess) {
     if (isApi) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth/get-session";
 import { PackSampleList } from "@/components/PackSampleList";
 import { PackPageHeader } from "@/components/PackPageHeader";
 import { PresetFolderList } from "@/components/PresetFolderList";
@@ -12,6 +13,7 @@ export default async function PackDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  const session = await getSession();
   const pack = await prisma.pack.findUnique({
     where: { slug },
     include: {
@@ -44,6 +46,7 @@ export default async function PackDetailPage({
           genre: pack.genre,
         }}
         types={types}
+        isAdmin={session?.role === "admin"}
       />
       <PresetFolderList
         assets={pack.assets.map((a) => ({

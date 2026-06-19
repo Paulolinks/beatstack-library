@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth/get-session";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  try {
+    await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+  }
+
   const { id } = await params;
 
   let body: { name?: string; producer?: string | null; genre?: string | null };

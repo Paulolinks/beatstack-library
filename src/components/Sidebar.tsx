@@ -17,8 +17,9 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/", label: "Packs", icon: Library },
   { href: "/search", label: "Buscar", icon: Search },
-  { href: "/admin/import", label: "Importar", icon: Upload },
 ];
+
+const ADMIN_NAV = [{ href: "/admin/import", label: "Importar", icon: Upload }];
 
 const COLLECTIONS = [
   { href: "/collections/ranked", label: "Ranqueados", icon: Star },
@@ -28,8 +29,9 @@ const COLLECTIONS = [
 
 const ADMIN = [{ href: "/admin/packs", label: "Gerenciar packs", icon: Settings2 }];
 
-export function Sidebar() {
+export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const nav = isAdmin ? [...NAV, ...ADMIN_NAV] : NAV;
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -50,7 +52,7 @@ export function Sidebar() {
           Menu
         </p>
         <ul className="mb-6 space-y-0.5">
-          {NAV.map(({ href, label, icon: Icon }) => (
+          {nav.map(({ href, label, icon: Icon }) => (
             <li key={href}>
               <Link
                 href={href}
@@ -90,27 +92,31 @@ export function Sidebar() {
           ))}
         </ul>
 
-        <p className="mb-2 mt-6 px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
-          Admin
-        </p>
-        <ul className="space-y-0.5">
-          {ADMIN.map(({ href, label, icon: Icon }) => (
-            <li key={href}>
-              <Link
-                href={href}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
-                  isActive(href)
-                    ? "bg-white/10 text-white"
-                    : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {label}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        {isAdmin && (
+          <>
+            <p className="mb-2 mt-6 px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+              Admin
+            </p>
+            <ul className="space-y-0.5">
+              {ADMIN.map(({ href, label, icon: Icon }) => (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                      isActive(href)
+                        ? "bg-white/10 text-white"
+                        : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </nav>
     </aside>
   );

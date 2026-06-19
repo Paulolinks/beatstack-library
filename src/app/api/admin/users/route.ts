@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { assignableRole } from "@/lib/auth/admin-policy";
 import { requireAdmin } from "@/lib/auth/get-session";
 import { hashPassword, normalizeEmail, validatePassword } from "@/lib/auth/password";
 
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
       email,
       passwordHash: await hashPassword(password),
       name: body.name?.trim() || null,
-      role: body.role === "admin" ? "admin" : "user",
+      role: assignableRole(email, body.role),
       approved: body.approved ?? false,
     },
     select: {

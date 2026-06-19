@@ -27,7 +27,13 @@ function getPackTags(pack: PackCardData & { tags?: string }): string[] {
   return [...new Set(merged.map((t) => t.toLowerCase()))];
 }
 
-export function PackLibrary({ packs }: { packs: (PackCardData & { tags: string })[] }) {
+export function PackLibrary({
+  packs,
+  isAdmin = false,
+}: {
+  packs: (PackCardData & { tags: string })[];
+  isAdmin?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
 
@@ -73,13 +79,15 @@ export function PackLibrary({ packs }: { packs: (PackCardData & { tags: string }
             {filtered.length} de {packs.length} pack{packs.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Link
-          href="/admin/import"
-          className="flex shrink-0 items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-500"
-        >
-          <Upload className="h-4 w-4" />
-          Importar pack
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/admin/import"
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-500"
+          >
+            <Upload className="h-4 w-4" />
+            Importar pack
+          </Link>
+        )}
       </div>
 
       {packs.length > 0 && (
@@ -137,12 +145,17 @@ export function PackLibrary({ packs }: { packs: (PackCardData & { tags: string }
           <p className="mt-2 max-w-md text-sm text-zinc-600">
             Faça upload de um ZIP com seu sample pack para começar.
           </p>
-          <Link
-            href="/admin/import"
-            className="mt-6 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
-          >
-            Importar primeiro pack
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/admin/import"
+              className="mt-6 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
+            >
+              Importar primeiro pack
+            </Link>
+          )}
+          {!isAdmin && (
+            <p className="mt-6 text-sm text-zinc-600">Aguarde o administrador importar novos packs.</p>
+          )}
         </div>
       ) : filtered.length === 0 ? (
         <p className="rounded-lg border border-white/10 p-8 text-center text-sm text-zinc-500">
