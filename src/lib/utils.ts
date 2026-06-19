@@ -27,11 +27,20 @@ export function parseWaveformPeaks(raw: string | null): number[] {
 
 export function formatDuration(ms: number | null | undefined): string {
   if (!ms) return "—";
-  const seconds = ms / 1000;
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m > 0) return `${m}:${s.toString().padStart(2, "0")}`;
+  return `0:${s.toString().padStart(2, "0")}`;
+}
+
+export function formatKey(key: string | null | undefined): string {
+  if (!key) return "—";
+  if (/m$/i.test(key) && key.length <= 3) {
+    return `${key.slice(0, -1)} min`;
+  }
+  if (/min/i.test(key)) return key.replace(/min/i, "min");
+  return `${key} maj`;
 }
 
 export function formatBpm(bpm: number | null | undefined): string {

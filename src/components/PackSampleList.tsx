@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { SampleRow, type SampleListItem } from "@/components/SampleRow";
+import { SampleTable } from "@/components/SampleTable";
+import type { SampleListItem } from "@/components/SampleRow";
 
 type InitialSample = Omit<SampleListItem, "pack"> & { type: string | null };
 
@@ -16,7 +17,7 @@ export function PackSampleList({
   const [refreshKey, setRefreshKey] = useState(0);
 
   const samples = useMemo(() => {
-    const mapped = initialSamples.map((s) => ({
+    const mapped: SampleListItem[] = initialSamples.map((s) => ({
       ...s,
       pack: {
         id: pack.id,
@@ -39,7 +40,7 @@ export function PackSampleList({
           type="button"
           onClick={() => setTypeFilter("")}
           className={`rounded-full px-3 py-1 text-xs uppercase ${
-            !typeFilter ? "bg-violet-600 text-white" : "bg-white/10 text-zinc-400"
+            !typeFilter ? "bg-sky-600 text-white" : "bg-white/10 text-zinc-400"
           }`}
         >
           Todos
@@ -50,7 +51,7 @@ export function PackSampleList({
             type="button"
             onClick={() => setTypeFilter(t)}
             className={`rounded-full px-3 py-1 text-xs uppercase ${
-              typeFilter === t ? "bg-violet-600 text-white" : "bg-white/10 text-zinc-400"
+              typeFilter === t ? "bg-sky-600 text-white" : "bg-white/10 text-zinc-400"
             }`}
           >
             {t}
@@ -58,15 +59,10 @@ export function PackSampleList({
         ))}
       </div>
 
-      <div className="divide-y divide-white/5 rounded-xl border border-white/10 bg-[#141418]/50">
-        {samples.map((sample) => (
-          <SampleRow
-            key={sample.id}
-            sample={sample}
-            onMetaChange={() => setRefreshKey((k) => k + 1)}
-          />
-        ))}
-      </div>
+      <SampleTable
+        samples={samples}
+        onMetaChange={() => setRefreshKey((k) => k + 1)}
+      />
     </div>
   );
 }

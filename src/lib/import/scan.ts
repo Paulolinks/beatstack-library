@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { parseFile } from "music-metadata";
+import { extractWaveformPeaks } from "@/lib/audio/waveform";
 
 const AUDIO_EXT = new Set([".wav", ".mp3", ".aiff", ".aif", ".flac", ".ogg", ".m4a"]);
 
@@ -52,10 +53,16 @@ export async function enrichAudioMetadata(file: ScannedAudioFile): Promise<Scann
     const durationMs = metadata.format.duration
       ? Math.round(metadata.format.duration * 1000)
       : null;
+
+    let waveformPeaks = extractWaveformPeaks(file.absolutePath);
+    if (waveformPeaks.length === 0) {
+      waveformPeaks = generateSimplePeaks(durationMs);
+    }
+
     return {
       ...file,
       durationMs,
-      waveformPeaks: generateSimplePeaks(durationMs),
+      waveformPeaks,
     };
   } catch {
     return {

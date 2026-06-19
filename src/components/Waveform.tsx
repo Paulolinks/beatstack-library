@@ -6,40 +6,56 @@ export function Waveform({
   peaks,
   progress = 0,
   playing = false,
+  interactive = false,
+  onSeek,
   className,
+  barClassName,
+  activeBarClassName,
 }: {
   peaks: number[];
   progress?: number;
   playing?: boolean;
+  interactive?: boolean;
+  onSeek?: (ratio: number) => void;
   className?: string;
+  barClassName?: string;
+  activeBarClassName?: string;
 }) {
-  if (!peaks.length) {
-    return (
-      <div className={cn("flex h-8 items-end gap-px", className)}>
-        {Array.from({ length: 32 }).map((_, i) => (
-          <div
-            key={i}
-            className="w-0.5 flex-1 rounded-sm bg-zinc-700"
-            style={{ height: `${20 + (i % 5) * 8}%` }}
-          />
-        ))}
-      </div>
-    );
+  const displayPeaks =
+    peaks.length > 0
+      ? peaks
+      : Array.from({ length: 64 }, (_, i) => 0.2 + Math.abs(Math.sin(i * 0.3)) * 0.3);
+
+  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (!interactive || !onSeek) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    onSeek(ratio);
   }
 
   return (
-    <div className={cn("flex h-8 items-end gap-px", className)}>
-      {peaks.map((peak, i) => {
-        const pct = i / peaks.length;
+    <div
+      className={cn(
+        "flex h-7 items-end gap-[1px]",
+        interactive && "cursor-pointer",
+        className,
+      )}
+      onClick={handleClick}
+      role={interactive ? "slider" : undefined}
+    >
+      {displayPeaks.map((peak, i) => {
+        const pct = i / displayPeaks.length;
         const active = playing && pct <= progress;
         return (
           <div
             key={i}
             className={cn(
-              "w-0.5 flex-1 rounded-sm transition-colors",
-              active ? "bg-violet-400" : "bg-zinc-600",
+              "min-w-[2px] flex-1 rounded-[1px] transition-colors",
+              active
+                ? activeBarClassName ?? "bg-sky-400"
+                : barClassName ?? "bg-zinc-600",
             )}
-            style={{ height: `${Math.max(8, peak * 100)}%` }}
+            style={{ height: `${Math.max(12, peak * 100)}%` }}
           />
         );
       })}

@@ -3,7 +3,8 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
-import { SampleRow, type SampleListItem } from "@/components/SampleRow";
+import { SampleTable } from "@/components/SampleTable";
+import type { SampleListItem } from "@/components/SampleRow";
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -44,13 +45,13 @@ function SearchContent() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && search()}
             placeholder="kick dubstep, Sullivan King, guitar loop 140..."
-            className="w-full rounded-lg border border-white/10 bg-[#141418] py-2.5 pl-10 pr-4 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-violet-500/50 focus:outline-none"
+            className="w-full rounded-lg border border-white/10 bg-[#141418] py-2.5 pl-10 pr-4 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-sky-500/50 focus:outline-none"
           />
         </div>
         <button
           type="button"
           onClick={() => search()}
-          className="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
+          className="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-sky-500"
         >
           Buscar
         </button>
@@ -65,7 +66,7 @@ function SearchContent() {
               onClick={() => setTypeFilter(typeFilter === t ? "" : t)}
               className={`rounded-full px-3 py-1 text-xs uppercase tracking-wide transition ${
                 typeFilter === t
-                  ? "bg-violet-600 text-white"
+                  ? "bg-sky-600 text-white"
                   : "bg-white/10 text-zinc-400 hover:bg-white/15"
               }`}
             >
@@ -100,22 +101,13 @@ function SearchContent() {
         {loading ? "Buscando..." : `${samples.length} resultado(s)`}
       </p>
 
-      <div className="divide-y divide-white/5 rounded-xl border border-white/10 bg-[#141418]/50">
-        {samples.length === 0 && !loading ? (
-          <p className="p-8 text-center text-sm text-zinc-500">
-            Nenhum sample encontrado. Tente &quot;kick&quot;, &quot;snare&quot; ou o nome do produtor.
-          </p>
-        ) : (
-          samples.map((sample) => (
-            <SampleRow
-              key={sample.id}
-              sample={sample}
-              showPack
-              onMetaChange={search}
-            />
-          ))
-        )}
-      </div>
+      {!loading && samples.length === 0 ? (
+        <p className="rounded-lg border border-white/10 p-8 text-center text-sm text-zinc-500">
+          Nenhum sample encontrado.
+        </p>
+      ) : (
+        <SampleTable samples={samples} onMetaChange={search} />
+      )}
     </div>
   );
 }

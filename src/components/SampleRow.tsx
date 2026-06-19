@@ -1,10 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Heart, Pause, Play } from "lucide-react";
+import Image from "next/image";
+import { Heart, Pause, Play, Plus, Check } from "lucide-react";
+import { useAudioPlayer } from "@/context/AudioPlayerContext";
+import { useSamplePeaks } from "@/hooks/useSamplePeaks";
+import { useSampleMeta } from "@/hooks/useSampleMeta";
 import { Waveform } from "./Waveform";
 import { StarRating } from "./StarRating";
-import { cn, formatDuration, parseWaveformPeaks } from "@/lib/utils";
+import {
+  cn,
+  formatDuration,
+  formatKey,
+  parseTagsJson,
+} from "@/lib/utils";
+import { useState } from "react";
 
 export interface SampleListItem {
   id: string;
@@ -14,6 +23,7 @@ export interface SampleListItem {
   type: string | null;
   instrument: string | null;
   category: string | null;
+  genre: string | null;
   bpm: number | null;
   key: string | null;
   tags: string;
@@ -34,120 +44,146 @@ export interface SampleListItem {
 export function SampleRow({
   sample,
   onMetaChange,
-  showPack = false,
+  showPackCover = true,
 }: {
   sample: SampleListItem;
   onMetaChange?: () => void;
-  showPack?: boolean;
+  showPackCover?: boolean;
 }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const numericPeaks = parseWaveformPeaks(sample.waveformPeaks);
+  const { currentSample, isPlaying, progress, toggle, seek } = useAudioPlayer();
+  const { peaks } = useSamplePeaks(sample.id, sample.waveformPeaks);
+  const { rating, favorite, updateMeta } = useSampleMeta(
+    sample.id,
+    sample.meta,
+    onMetaChange,
+  );
+  const [copied, setCopied] = useState(false);
 
-  const togglePlay = useCallback(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio(`/api/audio/${sample.id}`);
-      audioRef.current.addEventListener("timeupdate", () => {
-        if (audioRef.current?.duration) {
-          setProgress(audioRef.current.currentTime / audioRef.current.duration);
-        }
-      });
-      audioRef.current.addEventListener("ended", () => {
-        setPlaying(false);
-        setProgress(0);
-      });
+  const isCurrent = currentSample?.id === sample.id;
+  const playing = isCurrent && isPlaying;
+  const tags = buildTags(sample);
+  const coverUrl = sample.pack.coverPath ? `/api/covers/${sample.pack.id}` : null;
+
+  async function handleCopyToDaw() {
+    try {
+      const res = await fetch(`/api/samples/${sample.id}/copy`, { method: "POST" });
+      const data = (await res.json()) as { path?: string; error?: string };
+      if (!res.ok) throw new Error(data.error);
+
+      if (data.path) {
+        await navigator.clipboard.writeText(data.path);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.open(`/api/audio/${sample.id}`, "_blank");
     }
-
-    if (playing) {
-      audioRef.current.pause();
-      setPlaying(false);
-    } else {
-      void audioRef.current.play();
-      setPlaying(true);
-    }
-  }, [playing, sample.id]);
-
-  useEffect(() => {
-    return () => {
-      audioRef.current?.pause();
-      audioRef.current = null;
-    };
-  }, []);
-
-  async function updateMeta(data: { rating?: number; favorite?: boolean }) {
-    await fetch(`/api/samples/${sample.id}/meta`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    onMetaChange?.();
   }
 
   return (
-    <div className="group flex items-center gap-3 rounded-lg border border-transparent px-2 py-2 transition hover:border-white/10 hover:bg-white/[0.03]">
+    <div
+      className={cn(
+        "group grid grid-cols-[auto_auto_minmax(0,1fr)_minmax(120px,180px)_48px_56px_48px_auto] items-center gap-3 border-b border-white/[0.06] px-3 py-2 transition",
+        isCurrent ? "bg-sky-950/30" : "hover:bg-white/[0.03]",
+      )}
+    >
+      {showPackCover && (
+        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded bg-zinc-800">
+          {coverUrl ? (
+            <Image src={coverUrl} alt="" fill className="object-cover" unoptimized />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[10px] text-zinc-600">
+              PACK
+            </div>
+          )}
+        </div>
+      )}
+
       <button
         type="button"
-        onClick={togglePlay}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-600 text-white transition hover:bg-violet-500"
+        onClick={() => toggle(sample)}
+        className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition",
+          playing
+            ? "bg-sky-500 text-white"
+            : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700",
+        )}
       >
-        {playing ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
+        {playing ? (
+          <Pause className="h-3.5 w-3.5" />
+        ) : (
+          <Play className="ml-0.5 h-3.5 w-3.5" />
+        )}
       </button>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-medium text-zinc-200">{sample.displayName}</p>
-          {showPack && (
-            <span className="shrink-0 text-xs text-zinc-500">{sample.pack.name}</span>
-          )}
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          {sample.type && (
-            <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase text-zinc-400">
-              {sample.type}
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-zinc-100">{sample.fileName}</p>
+        <div className="mt-0.5 flex flex-wrap gap-1">
+          {tags.map((tag) => (
+            <span key={tag} className="text-[11px] text-zinc-500">
+              #{tag}
             </span>
-          )}
-          {sample.instrument && (
-            <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase text-zinc-400">
-              {sample.instrument}
-            </span>
-          )}
-          {sample.bpm && (
-            <span className="text-[10px] text-zinc-500">{sample.bpm} BPM</span>
-          )}
-          {sample.key && (
-            <span className="text-[10px] text-zinc-500">{sample.key}</span>
-          )}
-          <span className="text-[10px] text-zinc-600">{formatDuration(sample.durationMs)}</span>
+          ))}
         </div>
-        <Waveform
-          peaks={numericPeaks.length ? numericPeaks : []}
-          progress={progress}
-          playing={playing}
-          className="mt-2 max-w-md opacity-70 group-hover:opacity-100"
-        />
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-2">
+      <Waveform
+        peaks={peaks}
+        progress={isCurrent ? progress : 0}
+        playing={playing}
+        interactive={isCurrent}
+        onSeek={isCurrent ? seek : undefined}
+        className="hidden sm:flex"
+        barClassName="bg-zinc-600 group-hover:bg-zinc-500"
+        activeBarClassName="bg-sky-400"
+      />
+
+      <span className="text-right text-xs tabular-nums text-zinc-400">
+        {formatDuration(sample.durationMs)}
+      </span>
+
+      <span className="text-right text-xs text-zinc-400">{formatKey(sample.key)}</span>
+
+      <span className="text-right text-xs tabular-nums text-zinc-400">
+        {sample.bpm ?? "—"}
+      </span>
+
+      <div className="flex items-center gap-1">
         <button
           type="button"
-          onClick={() => updateMeta({ favorite: !sample.meta?.favorite })}
+          title="Copiar para pasta DAW"
+          onClick={() => void handleCopyToDaw()}
           className={cn(
-            "rounded p-1 transition",
-            sample.meta?.favorite
-              ? "text-rose-400"
-              : "text-zinc-600 hover:text-rose-400",
+            "rounded p-1.5 transition",
+            copied ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200",
           )}
         >
-          <Heart
-            className={cn("h-4 w-4", sample.meta?.favorite && "fill-current")}
-          />
+          {copied ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+        </button>
+        <button
+          type="button"
+          title="Favorito"
+          onClick={() => updateMeta({ favorite: !favorite })}
+          className={cn(
+            "rounded p-1.5 transition",
+            favorite ? "text-rose-400" : "text-zinc-500 hover:text-rose-400",
+          )}
+        >
+          <Heart className={cn("h-4 w-4", favorite && "fill-current")} />
         </button>
         <StarRating
-          value={sample.meta?.rating}
-          onChange={(rating) => updateMeta({ rating })}
+          value={rating}
+          onChange={(r) => updateMeta({ rating: r })}
         />
       </div>
     </div>
   );
+}
+
+function buildTags(sample: SampleListItem): string[] {
+  const fromJson = parseTagsJson(sample.tags);
+  const extra = [sample.type, sample.instrument, sample.category, sample.genre].filter(
+    Boolean,
+  ) as string[];
+  return [...new Set([...fromJson, ...extra])].slice(0, 8);
 }
