@@ -49,12 +49,10 @@ fi
 
 # Copia labels Traefik do n8n (mesmo certresolver/entrypoints)
 N8N_LABELS=$(docker inspect root-n8n-1 --format '{{range $k,$v := .Config.Labels}}{{$k}}={{$v}}{{"\n"}}{{end}}' 2>/dev/null || true)
-ENTRYPOINT=$(echo "$N8N_LABELS" | grep -oP 'traefik\.http\.routers\..*\.entrypoints=\K[^ ]+' | grep -E '(^websecure$|,websecure|websecure,)' | head -1 || true)
-CERT=$(echo "$N8N_LABELS" | grep -oP 'tls\.certresolver=\K[^ ]+' | head -1)
-ENTRYPOINT="websecure"
+ENTRYPOINT="web,websecure"
 CERT="${CERT:-mytlschallenge}"
 
-echo "==> Traefik entrypoint: $ENTRYPOINT | certresolver: $CERT"
+echo "==> Traefik entrypoint: $ENTRYPOINT | certresolver: $CERT | network: root_default"
 
 cat > docker-compose.traefik.yml << EOF
 services:
@@ -76,6 +74,7 @@ services:
       - traefik_public
     labels:
       - traefik.enable=true
+      - traefik.docker.network=root_default
       - traefik.http.routers.beatstack.rule=Host(\`${DOMAIN}\`)
       - traefik.http.routers.beatstack.entrypoints=${ENTRYPOINT}
       - traefik.http.routers.beatstack.tls=true
