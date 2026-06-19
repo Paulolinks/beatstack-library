@@ -16,6 +16,7 @@ if [[ ! -f Dockerfile ]]; then
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY prisma ./prisma
 RUN npm ci
 
 FROM node:20-bookworm-slim AS builder
@@ -48,10 +49,10 @@ fi
 
 # Copia labels Traefik do n8n (mesmo certresolver/entrypoints)
 N8N_LABELS=$(docker inspect root-n8n-1 --format '{{range $k,$v := .Config.Labels}}{{$k}}={{$v}}{{"\n"}}{{end}}' 2>/dev/null || true)
-ENTRYPOINT=$(echo "$N8N_LABELS" | grep -oP 'traefik\.http\.routers\..*\.entrypoints=\K[^ ]+' | head -1)
+ENTRYPOINT=$(echo "$N8N_LABELS" | grep -oP 'traefik\.http\.routers\..*\.entrypoints=\K[^ ]+' | grep -E '(^websecure$|,websecure|websecure,)' | head -1 || true)
 CERT=$(echo "$N8N_LABELS" | grep -oP 'tls\.certresolver=\K[^ ]+' | head -1)
-ENTRYPOINT="${ENTRYPOINT:-websecure}"
-CERT="${CERT:-letsencrypt}"
+ENTRYPOINT="websecure"
+CERT="${CERT:-mytlschallenge}"
 
 echo "==> Traefik entrypoint: $ENTRYPOINT | certresolver: $CERT"
 
