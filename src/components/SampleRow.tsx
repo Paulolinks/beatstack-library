@@ -1,14 +1,16 @@
 "use client";
 
 import Image from "next/image";
+import { useRef } from "react";
 import { Heart, Pause, Play, Plus, Check } from "lucide-react";
 import { useAudioPlayer } from "@/context/AudioPlayerContext";
-import { useSamplePeaks } from "@/hooks/useSamplePeaks";
+import { useSamplePeaks, useRowVisible } from "@/hooks/useSamplePeaks";
 import { useSampleMeta } from "@/hooks/useSampleMeta";
 import { Waveform } from "./Waveform";
 import { StarRating } from "./StarRating";
-import { cn, formatDuration, formatKey, parseTagsJson } from "@/lib/utils";
+import { cn, formatDuration, formatKey, parseTagsJson, parseWaveformPeaks } from "@/lib/utils";
 import { resolveSampleBpm, resolveSampleKey } from "@/lib/sample-metadata";
+import { isLikelyFakePeaks } from "@/lib/audio/waveform-client";
 import { useMemo, useState } from "react";
 
 export interface SampleListItem {
@@ -45,8 +47,22 @@ export function SampleRow({
   sample: SampleListItem;
   onMetaChange?: () => void;
 }) {
+  const rowRef = useRef<HTMLTableRowElement>(null);
   const { currentSample, isPlaying, progress, toggle, seek } = useAudioPlayer();
-  const { peaks } = useSamplePeaks(sample.id, sample.waveformPeaks);
+  const isCurrent = currentSample?.id === sample.id;
+  const playing = isCurrent && isPlaying;
+  const rowVisible = useRowVisible(rowRef);
+
+  const storedPeaks = parseWaveformPeaks(sample.waveformPeaks);
+  const needsDecode =
+    storedPeaks.length < 64 || isLikelyFakePeaks(storedPeaks);
+
+  const { peaks } = useSamplePeaks(
+    sample.id,
+    sample.waveformPeaks,
+    isCurrent || (rowVisible && needsDecode),
+  );
+
   const { rating, favorite, updateMeta } = useSampleMeta(
     sample.id,
     sample.meta,
@@ -54,8 +70,6 @@ export function SampleRow({
   );
   const [copied, setCopied] = useState(false);
 
-  const isCurrent = currentSample?.id === sample.id;
-  const playing = isCurrent && isPlaying;
   const tags = buildTags(sample);
   const coverUrl = sample.pack.coverPath ? `/api/covers/${sample.pack.id}` : null;
 
@@ -83,6 +97,7 @@ export function SampleRow({
 
   return (
     <tr
+      ref={rowRef}
       className={cn(
         "group border-b border-white/[0.06] transition",
         isCurrent ? "bg-sky-950/30" : "hover:bg-white/[0.03]",

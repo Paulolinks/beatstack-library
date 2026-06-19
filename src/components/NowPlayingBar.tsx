@@ -10,51 +10,33 @@ import { StarRating } from "./StarRating";
 import { cn, formatDuration, formatKey, parseTagsJson } from "@/lib/utils";
 import { resolveSampleBpm, resolveSampleKey } from "@/lib/sample-metadata";
 import { useMemo, useState } from "react";
+import type { SampleListItem } from "./SampleRow";
 
-function NowPlayingBarContent() {
-  const { currentSample, isPlaying, progress, toggle, seek } = useAudioPlayer();
-  const sampleId = currentSample?.id ?? "";
-  const { peaks } = useSamplePeaks(sampleId, currentSample?.waveformPeaks ?? null);
-  const { rating, favorite, updateMeta } = useSampleMeta(
-    sampleId,
-    currentSample?.meta ?? null,
-  );
+function NowPlayingBarInner({ sample }: { sample: SampleListItem }) {
+  const { isPlaying, progress, toggle, seek } = useAudioPlayer();
+  const { peaks } = useSamplePeaks(sample.id, sample.waveformPeaks, true);
+  const { rating, favorite, updateMeta } = useSampleMeta(sample.id, sample.meta);
   const [copied, setCopied] = useState(false);
 
-  const bpm = useMemo(() => {
-    if (!currentSample) return null;
-    return resolveSampleBpm(
-      currentSample.bpm,
-      currentSample.fileName,
-      currentSample.relativePath,
-    );
-  }, [currentSample]);
+  const bpm = useMemo(
+    () => resolveSampleBpm(sample.bpm, sample.fileName, sample.relativePath),
+    [sample.bpm, sample.fileName, sample.relativePath],
+  );
+  const key = useMemo(
+    () => resolveSampleKey(sample.key, sample.fileName, sample.relativePath),
+    [sample.key, sample.fileName, sample.relativePath],
+  );
 
-  const key = useMemo(() => {
-    if (!currentSample) return null;
-    return resolveSampleKey(
-      currentSample.key,
-      currentSample.fileName,
-      currentSample.relativePath,
-    );
-  }, [currentSample]);
-
-  if (!currentSample) return null;
-
-  const coverUrl = currentSample.pack.coverPath
-    ? `/api/covers/${currentSample.pack.id}`
-    : null;
+  const coverUrl = sample.pack.coverPath ? `/api/covers/${sample.pack.id}` : null;
   const tags = [
-    ...parseTagsJson(currentSample.tags),
-    currentSample.type,
-    currentSample.instrument,
+    ...parseTagsJson(sample.tags),
+    sample.type,
+    sample.instrument,
   ].filter(Boolean);
 
   async function handleCopyToDaw() {
     try {
-      const res = await fetch(`/api/samples/${currentSample!.id}/copy`, {
-        method: "POST",
-      });
+      const res = await fetch(`/api/samples/${sample.id}/copy`, { method: "POST" });
       const data = (await res.json()) as { path?: string };
       if (data.path) await navigator.clipboard.writeText(data.path);
       setCopied(true);
@@ -75,7 +57,7 @@ function NowPlayingBarContent() {
 
         <button
           type="button"
-          onClick={() => toggle(currentSample)}
+          onClick={() => toggle(sample)}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white"
         >
           {isPlaying ? (
@@ -86,7 +68,7 @@ function NowPlayingBarContent() {
         </button>
 
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{currentSample.fileName}</p>
+          <p className="truncate text-sm font-medium">{sample.fileName}</p>
           <div className="flex flex-wrap gap-1">
             {tags.slice(0, 5).map((t) => (
               <span key={t} className="text-[10px] text-zinc-500">
@@ -105,7 +87,7 @@ function NowPlayingBarContent() {
         </div>
 
         <div className="shrink-0 text-xs tabular-nums text-zinc-400">
-          {formatDuration(currentSample.durationMs)}
+          {formatDuration(sample.durationMs)}
         </div>
         <div className="shrink-0 text-xs text-zinc-400">{formatKey(key)}</div>
         <div className="shrink-0 text-xs tabular-nums text-zinc-400">{bpm ?? "—"}</div>
@@ -142,5 +124,5 @@ function NowPlayingBarContent() {
 export function NowPlayingBar() {
   const { currentSample } = useAudioPlayer();
   if (!currentSample) return null;
-  return <NowPlayingBarContent />;
+  return <NowPlayingBarInner key={currentSample.id} sample={currentSample} />;
 }
