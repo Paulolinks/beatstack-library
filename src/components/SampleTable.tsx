@@ -5,9 +5,11 @@ import { SampleRow, type SampleListItem } from "./SampleRow";
 export function SampleTable({
   samples,
   onMetaChange,
+  onTagClick,
 }: {
   samples: SampleListItem[];
   onMetaChange?: () => void;
+  onTagClick?: (tag: string) => void;
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-white/10 bg-[#101014]">
@@ -47,6 +49,7 @@ export function SampleTable({
                 key={sample.id}
                 sample={sample}
                 onMetaChange={onMetaChange}
+                onTagClick={onTagClick}
               />
             ))
           )}

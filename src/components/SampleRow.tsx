@@ -37,15 +37,18 @@ export interface SampleListItem {
   meta: {
     rating: number | null;
     favorite: boolean;
+    downloadedAt?: string | Date | null;
   } | null;
 }
 
 export function SampleRow({
   sample,
   onMetaChange,
+  onTagClick,
 }: {
   sample: SampleListItem;
   onMetaChange?: () => void;
+  onTagClick?: (tag: string) => void;
 }) {
   const rowRef = useRef<HTMLTableRowElement>(null);
   const { currentSample, isPlaying, progress, toggle, seek } = useAudioPlayer();
@@ -69,6 +72,7 @@ export function SampleRow({
     onMetaChange,
   );
   const [copied, setCopied] = useState(false);
+  const isDownloaded = Boolean(sample.meta?.downloadedAt);
 
   const tags = buildTags(sample);
   const coverUrl = sample.pack.coverPath ? `/api/covers/${sample.pack.id}` : null;
@@ -90,6 +94,7 @@ export function SampleRow({
       if (data.path) await navigator.clipboard.writeText(data.path);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      onMetaChange?.();
     } catch {
       window.open(`/api/audio/${sample.id}`, "_blank");
     }
@@ -135,11 +140,22 @@ export function SampleRow({
       <td className="px-2 py-2 align-middle">
         <p className="truncate text-sm font-medium text-zinc-100">{sample.fileName}</p>
         <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0">
-          {tags.map((tag) => (
-            <span key={tag} className="text-[11px] text-zinc-500">
-              #{tag}
-            </span>
-          ))}
+          {tags.map((tag, i) =>
+            onTagClick ? (
+              <button
+                key={`${sample.id}-${tag}-${i}`}
+                type="button"
+                onClick={() => onTagClick(tag)}
+                className="text-[11px] text-zinc-500 transition hover:text-sky-400"
+              >
+                #{tag}
+              </button>
+            ) : (
+              <span key={`${sample.id}-${tag}-${i}`} className="text-[11px] text-zinc-500">
+                #{tag}
+              </span>
+            ),
+          )}
         </div>
       </td>
 
@@ -173,7 +189,9 @@ export function SampleRow({
             onClick={() => void handleCopyToDaw()}
             className={cn(
               "rounded p-1.5 transition",
-              copied ? "text-emerald-400" : "text-zinc-500 hover:text-zinc-200",
+              copied || isDownloaded
+                ? "text-emerald-400"
+                : "text-zinc-500 hover:text-zinc-200",
             )}
           >
             {copied ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
@@ -201,5 +219,5 @@ function buildTags(sample: SampleListItem): string[] {
   const extra = [sample.type, sample.instrument, sample.category, sample.genre].filter(
     Boolean,
   ) as string[];
-  return [...new Set([...fromJson, ...extra])].slice(0, 8);
+  return [...new Set([...fromJson, ...extra].map((t) => t.toLowerCase()))].slice(0, 8);
 }
