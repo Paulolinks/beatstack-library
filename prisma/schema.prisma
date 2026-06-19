@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Pack {
+  id                String   @id @default(cuid())
+  name              String
+  producer          String?
+  slug              String   @unique
+  coverPath         String?
+  description       String?
+  sourceArchivePath String?
+  sampleCount       Int      @default(0)
+  genre             String?
+  tags              String   @default("[]")
+  published         Boolean  @default(true)
+  importedAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  samples    Sample[]
+  importJobs ImportJob[]
+
+  @@map("packs")
+}
+
+model Sample {
+  id            String   @id @default(cuid())
+  packId        String
+  fileName      String
+  displayName   String
+  storagePath   String
+  relativePath  String
+  durationMs    Int?
+  type          String?
+  instrument    String?
+  category      String?
+  genre         String?
+  bpm           Int?
+  key           String?
+  tags          String   @default("[]")
+  waveformPeaks String?
+  searchText    String?
+  createdAt     DateTime @default(now())
+
+  pack            Pack               @relation(fields: [packId], references: [id], onDelete: Cascade)
+  meta            UserSampleMeta?
+  collectionItems CollectionSample[]
+
+  @@index([packId])
+  @@index([type])
+  @@index([instrument])
+  @@index([bpm])
+  @@map("samples")
+}
+
+model UserSampleMeta {
+  id           String    @id @default(cuid())
+  sampleId     String    @unique
+  rating       Int?
+  favorite     Boolean   @default(false)
+  downloadedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sample Sample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+
+  @@index([favorite])
+  @@index([rating])
+  @@map("user_sample_meta")
+}
+
+model Collection {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  samples CollectionSample[]
+
+  @@map("collections")
+}
+
+model CollectionSample {
+  id           String   @id @default(cuid())
+  collectionId String
+  sampleId     String
+  addedAt      DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  sample     Sample     @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, sampleId])
+  @@map("collection_samples")
+}
+
+model ImportJob {
+  id           String   @id @default(cuid())
+  packId       String?
+  fileName     String
+  inboxPath    String
+  status       String   @default("PENDING")
+  progress     Int      @default(0)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pack Pack? @relation(fields: [packId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@map("import_jobs")
+}
