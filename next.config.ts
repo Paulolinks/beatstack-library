@@ -9,8 +9,7 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["node-unrar-js"],
   experimental: {
-    // Middleware/proxy bufferam o body — default 10MB quebra upload de packs grandes
-    middlewareClientMaxBodySize: "500mb",
+    // Default 10MB — packs de 40MB+ falhavam com "Failed to parse body as FormData"
     proxyClientMaxBodySize: "500mb",
     serverActions: {
       bodySizeLimit: "500mb",
