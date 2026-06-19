@@ -67,7 +67,7 @@ services:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       PORT: 3000
-      DATABASE_URL: "file:./prisma/prod.db"
+      DATABASE_URL: "file:/app/prisma/prod.db"
     volumes:
       - beatstack_storage:/app/storage
       - beatstack_db:/app/prisma
