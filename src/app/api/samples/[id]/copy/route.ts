@@ -3,14 +3,45 @@ import fs from "fs";
 import path from "path";
 import { prisma } from "@/lib/prisma";
 import { fromRelativeStoragePath } from "@/lib/storage";
-import { ensureStagingDir } from "@/lib/staging";
+import {
+  ensureLibraryFolder,
+  sanitizePathSegment,
+  type LibraryFolder,
+} from "@/lib/library-paths";
+
+const VALID_FOLDERS = new Set<LibraryFolder>(["downloads", "likes", "copied"]);
+
+function parseFolder(body: unknown, searchParams: URLSearchParams): LibraryFolder {
+  let raw: string | undefined;
+  if (body && typeof body === "object" && "folder" in body) {
+    raw = String((body as { folder?: string }).folder ?? "");
+  }
+  if (!raw) raw = searchParams.get("folder") ?? undefined;
+  if (raw && VALID_FOLDERS.has(raw as LibraryFolder)) {
+    return raw as LibraryFolder;
+  }
+  return "downloads";
+}
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const sample = await prisma.sample.findUnique({ where: { id } });
+
+  let body: unknown = null;
+  try {
+    body = await request.json();
+  } catch {
+    /* sem body */
+  }
+
+  const folder = parseFolder(body, request.nextUrl.searchParams);
+
+  const sample = await prisma.sample.findUnique({
+    where: { id },
+    include: { pack: { select: { slug: true, name: true } } },
+  });
   if (!sample) {
     return NextResponse.json({ error: "Sample não encontrado" }, { status: 404 });
   }
@@ -20,9 +51,14 @@ export async function POST(
     return NextResponse.json({ error: "Arquivo ausente" }, { status: 404 });
   }
 
-  const stagingDir = ensureStagingDir();
+  const libraryDir = ensureLibraryFolder(folder);
+  const packDir = path.join(libraryDir, sanitizePathSegment(sample.pack.slug));
+  if (!fs.existsSync(packDir)) {
+    fs.mkdirSync(packDir, { recursive: true });
+  }
+
   const safeName = sample.fileName.replace(/[<>:"/\\|?*]/g, "_");
-  const destPath = path.join(stagingDir, safeName);
+  const destPath = path.join(packDir, safeName);
 
   fs.copyFileSync(sourcePath, destPath);
 
@@ -36,6 +72,8 @@ export async function POST(
     success: true,
     path: destPath,
     fileName: safeName,
-    message: `Copiado para pasta de staging do DAW`,
+    folder,
+    packName: sample.pack.name,
+    message: `Copiado para ${destPath}`,
   });
 }

@@ -1,17 +1,10 @@
-import os from "os";
-import path from "path";
-import fs from "fs";
+import { ensureLibraryFolder, getLibraryFolder } from "@/lib/library-paths";
 
+/** @deprecated Use library-paths — mantido para compatibilidade */
 export function getStagingDir(): string {
-  const appData =
-    process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
-  return path.join(appData, "BeatStackLibrary", "staging");
+  return getLibraryFolder("downloads");
 }
 
 export function ensureStagingDir(): string {
-  const dir = getStagingDir();
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  return dir;
+  return ensureLibraryFolder("downloads");
 }

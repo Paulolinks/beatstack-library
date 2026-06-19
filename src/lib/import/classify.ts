@@ -46,14 +46,33 @@ const GENRE_RULES: Array<{ pattern: RegExp; value: string; tag: string }> = [
   { pattern: /\btrap\b/i, value: "trap", tag: "trap" },
   { pattern: /\bhouse\b|\btech house\b|\bdeep house\b/i, value: "house", tag: "house" },
   { pattern: /\btechno\b/i, value: "techno", tag: "techno" },
-  { pattern: /\bdrum.?and.?bass\b|\bdnb\b|\bdrum n bass\b/i, value: "dnb", tag: "dnb" },
+  { pattern: /\bdrum.?and.?bass\b|\bdrum\s+&\s+bass\b|\bdnb\b|\bdrum n bass\b/i, value: "dnb", tag: "dnb" },
   { pattern: /\brock\b|\bmetal\b|\bhardcore\b|\bmetalcore\b/i, value: "rock", tag: "rock" },
   { pattern: /\bhip.?hop\b|\bhiphop\b|\bboom bap\b/i, value: "hip-hop", tag: "hip-hop" },
   { pattern: /\bpop\b/i, value: "pop", tag: "pop" },
   { pattern: /\bedm\b|\belectronic\b/i, value: "edm", tag: "edm" },
 ];
 
+const DESCRIPTIVE_TAG_RULES: Array<{ pattern: RegExp; tag: string }> = [
+  { pattern: /\bbuild\s*ups?\b|\bbuildups?\b/i, tag: "build-up" },
+  { pattern: /\bdrops?\b/i, tag: "drop" },
+  { pattern: /\bfills?\b/i, tag: "fill" },
+  { pattern: /\bbreak\s*downs?\b|\bbreakdowns?\b/i, tag: "breakdown" },
+  { pattern: /\btransitions?\b/i, tag: "transition" },
+  { pattern: /\btops?\b/i, tag: "tops" },
+  { pattern: /\bchords?\b/i, tag: "chord" },
+  { pattern: /\barps?\b/i, tag: "arp" },
+  { pattern: /\bpre\s*drops?\b/i, tag: "pre-drop" },
+  { pattern: /\bintro\b/i, tag: "intro" },
+  { pattern: /\boutro\b/i, tag: "outro" },
+  { pattern: /\bverse\b/i, tag: "verse" },
+  { pattern: /\bhook\b/i, tag: "hook" },
+  { pattern: /\btextures?\b/i, tag: "texture" },
+  { pattern: /\batmosphere\b|\batmo\b/i, tag: "atmosphere" },
+];
+
 import { parseBpmKeyFromText } from "@/lib/sample-metadata";
+import { inferGenresFromText, normalizePackText } from "@/lib/pack-genres";
 
 function matchFirst(
   text: string,
@@ -70,14 +89,25 @@ function matchFirst(
   return { value, tags };
 }
 
+function matchDescriptiveTags(text: string): string[] {
+  const tags: string[] = [];
+  for (const rule of DESCRIPTIVE_TAG_RULES) {
+    if (rule.pattern.test(text)) tags.push(rule.tag);
+  }
+  return tags;
+}
+
 export function classifySample(relativePath: string, fileName: string): ClassificationResult {
   const text = `${relativePath} ${fileName}`.replace(/\\/g, "/");
   const textLower = text.toLowerCase();
+  // Underscores em packs (Build_Up, Hi_Hat) viram espaço para o regex funcionar
+  const textForMatch = textLower.replace(/[_-]+/g, " ");
 
-  const typeResult = matchFirst(textLower, TYPE_RULES);
-  const instrumentResult = matchFirst(textLower, INSTRUMENT_RULES);
-  const categoryResult = matchFirst(textLower, CATEGORY_RULES);
-  const genreResult = matchFirst(textLower, GENRE_RULES);
+  const typeResult = matchFirst(textForMatch, TYPE_RULES);
+  const instrumentResult = matchFirst(textForMatch, INSTRUMENT_RULES);
+  const categoryResult = matchFirst(textForMatch, CATEGORY_RULES);
+  const genreResult = matchFirst(textForMatch, GENRE_RULES);
+  const descriptiveTags = matchDescriptiveTags(textForMatch);
   const { bpm, key } = parseBpmKeyFromText(text);
 
   const tags = [
@@ -86,6 +116,7 @@ export function classifySample(relativePath: string, fileName: string): Classifi
       ...instrumentResult.tags,
       ...categoryResult.tags,
       ...genreResult.tags,
+      ...descriptiveTags,
     ]),
   ];
 
@@ -151,17 +182,32 @@ export function inferPackMeta(packFolderName: string): {
   genre: string | null;
   tags: string[];
 } {
-  const cleaned = packFolderName.replace(/[-_]+/g, " ").trim();
-  const genreResult = matchFirst(cleaned, GENRE_RULES);
+  const cleaned = normalizePackText(packFolderName);
+  const genres = inferGenresFromText(packFolderName);
 
   const parts = cleaned.split(/\s+/);
   const producer =
-    parts.length >= 2 && parts[0].length > 2 ? parts.slice(0, 2).join(" ") : parts[0] || null;
+    parts.length >= 2 && parts[0].length > 2 ? `${parts[0]} ${parts[1]}` : parts[0] || null;
 
   return {
     name: cleaned || packFolderName,
     producer,
-    genre: genreResult.value,
-    tags: genreResult.tags,
+    genre: genres[0] ?? null,
+    tags: genres,
   };
+}
+
+export function inferGenreFromClassifications(
+  classifications: ClassificationResult[],
+): { genre: string | null; tags: string[] } {
+  const counts = new Map<string, number>();
+  for (const c of classifications) {
+    if (c.genre) {
+      counts.set(c.genre, (counts.get(c.genre) ?? 0) + 1);
+    }
+  }
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const genre = sorted[0]?.[0] ?? null;
+  const tags = genre ? [genre] : [];
+  return { genre, tags };
 }

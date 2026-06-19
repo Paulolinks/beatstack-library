@@ -1,15 +1,18 @@
 "use client";
 
 import { SampleRow, type SampleListItem } from "./SampleRow";
+import type { CopyFolder } from "@/lib/download-sample-client";
 
 export function SampleTable({
   samples,
   onMetaChange,
   onTagClick,
+  copyFolder = "downloads",
 }: {
   samples: SampleListItem[];
   onMetaChange?: () => void;
   onTagClick?: (tag: string) => void;
+  copyFolder?: CopyFolder;
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-white/10 bg-[#101014]">
@@ -22,7 +25,7 @@ export function SampleTable({
           <col className="w-14" />
           <col className="w-[72px]" />
           <col className="w-12" />
-          <col className="w-[108px]" />
+          <col className="w-[145px]" />
         </colgroup>
         <thead>
           <tr className="border-b border-white/10 bg-[#0d0d12] text-[10px] font-medium uppercase tracking-wider text-zinc-500">
@@ -50,6 +53,7 @@ export function SampleTable({
                 sample={sample}
                 onMetaChange={onMetaChange}
                 onTagClick={onTagClick}
+                copyFolder={copyFolder}
               />
             ))
           )}

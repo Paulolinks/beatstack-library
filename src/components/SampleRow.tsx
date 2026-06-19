@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRef } from "react";
-import { Heart, Pause, Play, Plus, Check } from "lucide-react";
+import { Heart, Pause, Play, Download, Check, Loader2 } from "lucide-react";
 import { useAudioPlayer } from "@/context/AudioPlayerContext";
 import { useSamplePeaks, useRowVisible } from "@/hooks/useSamplePeaks";
 import { useSampleMeta } from "@/hooks/useSampleMeta";
@@ -11,6 +12,7 @@ import { StarRating } from "./StarRating";
 import { cn, formatDuration, formatKey, parseTagsJson, parseWaveformPeaks } from "@/lib/utils";
 import { resolveSampleBpm, resolveSampleKey } from "@/lib/sample-metadata";
 import { isLikelyFakePeaks } from "@/lib/audio/waveform-client";
+import { downloadSampleFile, usesCopyFlow, type CopyFolder } from "@/lib/download-sample-client";
 import { useMemo, useState } from "react";
 
 export interface SampleListItem {
@@ -45,10 +47,12 @@ export function SampleRow({
   sample,
   onMetaChange,
   onTagClick,
+  copyFolder = "downloads",
 }: {
   sample: SampleListItem;
   onMetaChange?: () => void;
   onTagClick?: (tag: string) => void;
+  copyFolder?: CopyFolder;
 }) {
   const rowRef = useRef<HTMLTableRowElement>(null);
   const { currentSample, isPlaying, progress, toggle, seek } = useAudioPlayer();
@@ -72,6 +76,7 @@ export function SampleRow({
     onMetaChange,
   );
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const isDownloaded = Boolean(sample.meta?.downloadedAt);
 
   const tags = buildTags(sample);
@@ -86,19 +91,35 @@ export function SampleRow({
     [sample.key, sample.fileName, sample.relativePath],
   );
 
-  async function handleCopyToDaw() {
+  async function handleDownloadSample() {
+    setDownloading(true);
     try {
-      const res = await fetch(`/api/samples/${sample.id}/copy`, { method: "POST" });
-      const data = (await res.json()) as { path?: string; error?: string };
-      if (!res.ok) throw new Error(data.error);
-      if (data.path) await navigator.clipboard.writeText(data.path);
+      const result = await downloadSampleFile(
+        sample.id,
+        sample.fileName,
+        copyFolder,
+        sample.pack.slug,
+      );
+      if (!result.ok) {
+        window.alert(result.error ?? "Não foi possível copiar o sample");
+        return;
+      }
+      if (result.mode === "copy" && result.clipboardOk === false && result.path) {
+        window.alert(
+          `Sample salvo em:\n${result.path}\n\nCole no browser de arquivos do DAW ou use Ctrl+V na timeline.`,
+        );
+      }
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), 2500);
       onMetaChange?.();
-    } catch {
-      window.open(`/api/audio/${sample.id}`, "_blank");
+    } finally {
+      setDownloading(false);
     }
   }
+
+  const actionTitle = usesCopyFlow()
+    ? "Copia o sample — Ctrl+V na timeline ou browser de arquivos do DAW"
+    : "Baixar sample";
 
   return (
     <tr
@@ -109,15 +130,19 @@ export function SampleRow({
       )}
     >
       <td className="px-2 py-2 align-middle">
-        <div className="relative mx-auto h-10 w-10 overflow-hidden rounded bg-zinc-800">
+        <Link
+          href={`/packs/${sample.pack.slug}`}
+          title={`Ver pack: ${sample.pack.name}`}
+          className="relative mx-auto block h-10 w-10 overflow-hidden rounded bg-zinc-800 ring-0 transition hover:ring-2 hover:ring-sky-500/50"
+        >
           {coverUrl ? (
-            <Image src={coverUrl} alt="" fill className="object-cover" unoptimized />
+            <Image src={coverUrl} alt={sample.pack.name} fill className="object-cover" unoptimized />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-600">
+            <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-600 transition group-hover:text-zinc-400">
               PACK
             </div>
           )}
-        </div>
+        </Link>
       </td>
 
       <td className="px-1 py-2 align-middle">
@@ -181,20 +206,33 @@ export function SampleRow({
         {bpm ?? "—"}
       </td>
 
-      <td className="px-2 py-2 align-middle">
-        <div className="flex items-center justify-end gap-0.5">
+      <td className="px-1 py-2 align-middle">
+        <div className="flex items-center justify-end gap-1 pr-1">
           <button
             type="button"
-            title="Copiar para pasta DAW"
-            onClick={() => void handleCopyToDaw()}
+            title={actionTitle}
+            disabled={downloading}
+            onClick={() => void handleDownloadSample()}
             className={cn(
-              "rounded p-1.5 transition",
+              "inline-flex min-w-[72px] items-center justify-center gap-1 rounded-md px-1.5 py-2 transition",
               copied || isDownloaded
                 ? "text-emerald-400"
-                : "text-zinc-500 hover:text-zinc-200",
+                : "text-zinc-500 hover:bg-white/5 hover:text-zinc-200",
+              downloading && "opacity-60",
             )}
           >
-            {copied ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {downloading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : copied ? (
+              <>
+                <Check className="h-4 w-4 shrink-0" />
+                <span className="text-[10px] font-semibold leading-none">Copiado</span>
+              </>
+            ) : isDownloaded ? (
+              <Check className="h-5 w-5" />
+            ) : (
+              <Download className="h-5 w-5" />
+            )}
           </button>
           <button
             type="button"

@@ -7,6 +7,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         String   @default("user")
+  approved     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([approved])
+  @@index([role])
+  @@map("users")
+}
+
 model Pack {
   id                String   @id @default(cuid())
   name              String
@@ -16,6 +31,7 @@ model Pack {
   description       String?
   sourceArchivePath String?
   sampleCount       Int      @default(0)
+  presetCount       Int      @default(0)
   genre             String?
   tags              String   @default("[]")
   published         Boolean  @default(true)
@@ -24,6 +40,7 @@ model Pack {
   updatedAt         DateTime @updatedAt
 
   samples    Sample[]
+  assets     PackAsset[]
   importJobs ImportJob[]
 
   @@map("packs")
@@ -57,6 +74,39 @@ model Sample {
   @@index([instrument])
   @@index([bpm])
   @@map("samples")
+}
+
+model PackAsset {
+  id           String   @id @default(cuid())
+  packId       String
+  name         String
+  relativePath String
+  storagePath  String
+  assetType    String   @default("preset-folder")
+  presetKind   String?
+  fileCount    Int      @default(0)
+  tags         String   @default("[]")
+  searchText   String?
+  createdAt    DateTime @default(now())
+
+  pack Pack            @relation(fields: [packId], references: [id], onDelete: Cascade)
+  meta UserAssetMeta?
+
+  @@index([packId])
+  @@index([presetKind])
+  @@map("pack_assets")
+}
+
+model UserAssetMeta {
+  id           String    @id @default(cuid())
+  assetId      String    @unique
+  downloadedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  asset PackAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@map("user_asset_meta")
 }
 
 model UserSampleMeta {

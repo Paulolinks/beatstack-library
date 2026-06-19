@@ -2,15 +2,22 @@
   "name": "beatstack-library",
   "version": "0.1.0",
   "private": true,
+  "main": "desktop/main.js",
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "powershell -ExecutionPolicy Bypass -File scripts/dev-clean.ps1",
+    "desktop:clean": "powershell -ExecutionPolicy Bypass -File scripts/desktop-dev.ps1",
     "build": "prisma generate && next build",
     "start": "next start",
+    "desktop": "electron desktop/main.js",
+    "desktop:dev": "concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:3000 && electron desktop/main.js\"",
     "lint": "eslint",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
-    "postinstall": "prisma generate"
+    "admin:create": "tsx scripts/create-admin.ts",
+    "postinstall": "prisma generate",
+    "pack:desktop": "npm run build && electron-builder --win"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -26,6 +33,7 @@
     "mercadopago": "^3.1.0",
     "music-metadata": "^11.13.0",
     "next": "16.2.9",
+    "node-unrar-js": "^2.0.2",
     "prisma": "^5.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -45,8 +53,48 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "concurrently": "^9.2.1",
+    "electron": "^35.7.5",
+    "wait-on": "^8.0.5",
+    "electron-builder": "^25.1.8",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.beatstack.library",
+    "productName": "BeatStack Library",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "desktop/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "standalone",
+        "filter": ["**/*"]
+      },
+      {
+        "from": ".next/static",
+        "to": "standalone/.next/static",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "public",
+        "to": "standalone/public",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "BeatStack Library"
+    }
   }
 }

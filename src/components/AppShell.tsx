@@ -1,21 +1,53 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Library, Search, Upload, Disc3 } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Library, LogOut, Search, Upload, Disc3, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AudioPlayerProvider } from "@/context/AudioPlayerContext";
 import { NowPlayingBar } from "@/components/NowPlayingBar";
 import { Sidebar } from "@/components/Sidebar";
 
-const NAV = [
-  { href: "/", label: "Packs", icon: Library },
-  { href: "/search", label: "Buscar", icon: Search },
-  { href: "/admin/import", label: "Importar", icon: Upload },
-];
+interface AuthUser {
+  email: string;
+  name: string | null;
+  role: string;
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    if (pathname === "/login") return;
+    void fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d: { user: AuthUser | null }) => setUser(d.user))
+      .catch(() => setUser(null));
+  }, [pathname]);
+
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
+
+  const nav = [
+    { href: "/", label: "Packs", icon: Library },
+    { href: "/search", label: "Buscar", icon: Search },
+    ...(user?.role === "admin"
+      ? [
+          { href: "/admin/import", label: "Importar", icon: Upload },
+          { href: "/admin/users", label: "Usuários", icon: Users },
+        ]
+      : []),
+  ];
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <AudioPlayerProvider>
@@ -30,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span>BeatStack Library</span>
               </Link>
               <nav className="ml-auto flex items-center gap-1">
-                {NAV.map(({ href, label, icon: Icon }) => (
+                {nav.map(({ href, label, icon: Icon }) => (
                   <Link
                     key={href}
                     href={href}
@@ -45,6 +77,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <span className="hidden sm:inline">{label}</span>
                   </Link>
                 ))}
+                {user && (
+                  <div className="ml-2 flex items-center gap-2 border-l border-white/10 pl-2">
+                    <span className="hidden max-w-[140px] truncate text-xs text-zinc-500 md:inline">
+                      {user.email}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void logout()}
+                      title="Sair"
+                      className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
+                    >
+                      <LogOut className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </nav>
             </div>
           </header>

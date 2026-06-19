@@ -8,26 +8,41 @@ import {
   getPackDir,
   toRelativeStoragePath,
 } from "@/lib/storage";
-import { extractZip, findCoverImage, copyCoverToPack, inferPackNameFromArchive } from "./extract";
+import {
+  extractArchive,
+  findCoverImage,
+  copyCoverToPack,
+  savePackCoverFromBuffer,
+  inferPackNameFromArchive,
+  inferPackNameFromFolderPaths,
+  writeFolderFilesToDir,
+} from "./extract";
 import { scanAndEnrichAudio } from "./scan";
+import { scanPresetBundles } from "./scan-presets";
 import {
   buildDisplayName,
   buildSearchText,
   classifySample,
   inferPackMeta,
+  inferGenreFromClassifications,
 } from "./classify";
 
 export interface ImportPackOptions {
-  archivePath: string;
+  archivePath?: string;
   originalFileName: string;
   packName?: string;
   producer?: string;
+  genre?: string;
+  coverFile?: { buffer: Buffer; mimeType: string; fileName: string };
+  folderFiles?: { buffer: Buffer; relativePath: string }[];
 }
 
 export interface ImportPackResult {
   packId: string;
   slug: string;
   sampleCount: number;
+  presetCount: number;
+  presetKinds: string[];
   jobId: string;
 }
 
@@ -49,7 +64,7 @@ export async function importPackFromArchive(
   const job = await prisma.importJob.create({
     data: {
       fileName: options.originalFileName,
-      inboxPath: options.archivePath,
+      inboxPath: options.archivePath ?? options.originalFileName,
       status: "PROCESSING",
       progress: 5,
     },
@@ -67,14 +82,24 @@ export async function importPackFromArchive(
       data: { progress: 15 },
     });
 
-    extractZip(options.archivePath, extractDir);
+    if (options.folderFiles?.length) {
+      writeFolderFilesToDir(options.folderFiles, extractDir);
+    } else if (options.archivePath) {
+      await extractArchive(options.archivePath, extractDir);
+    } else {
+      throw new Error("Nenhum arquivo ou pasta enviado para importação");
+    }
 
     await prisma.importJob.update({
       where: { id: job.id },
       data: { progress: 30 },
     });
 
-    const folderName = options.packName || inferPackNameFromArchive(options.originalFileName);
+    const defaultName = options.folderFiles?.length
+      ? inferPackNameFromFolderPaths(options.folderFiles.map((f) => f.relativePath))
+      : inferPackNameFromArchive(options.originalFileName);
+
+    const folderName = options.packName || defaultName;
     const packMeta = inferPackMeta(folderName);
     const displayName = options.packName || packMeta.name;
     const producer = options.producer || packMeta.producer;
@@ -93,17 +118,47 @@ export async function importPackFromArchive(
 
     const coverSource = findCoverImage(packDir);
     let coverRelative: string | null = null;
-    if (coverSource) {
+    if (options.coverFile) {
+      const coverDest = savePackCoverFromBuffer(
+        packDir,
+        options.coverFile.buffer,
+        options.coverFile.mimeType,
+        options.coverFile.fileName,
+      );
+      coverRelative = toRelativeStoragePath(coverDest);
+    } else if (coverSource) {
       const coverDest = copyCoverToPack(coverSource, packDir);
       coverRelative = toRelativeStoragePath(coverDest);
     }
 
     const audioFiles = await scanAndEnrichAudio(packDir);
+    const presetBundles = scanPresetBundles(packDir);
+
+    if (audioFiles.length === 0 && presetBundles.length === 0) {
+      throw new Error(
+        "Nenhum sample de áudio ou pasta de presets encontrada no pack",
+      );
+    }
 
     await prisma.importJob.update({
       where: { id: job.id },
       data: { progress: 70 },
     });
+
+    const classifications = audioFiles.map((file) =>
+      classifySample(file.relativePath, file.fileName),
+    );
+    const sampleGenre = inferGenreFromClassifications(classifications);
+    const userGenre = options.genre?.trim() || undefined;
+    const packGenre = userGenre || packMeta.genre || sampleGenre.genre;
+    const packTags = [
+      ...new Set([
+        ...packMeta.tags,
+        ...sampleGenre.tags,
+        ...(userGenre ? [userGenre] : []),
+        ...(packGenre ? [packGenre] : []),
+      ]),
+    ];
 
     const pack = await prisma.pack.create({
       data: {
@@ -111,23 +166,22 @@ export async function importPackFromArchive(
         producer,
         slug,
         coverPath: coverRelative,
-        sourceArchivePath: toRelativeStoragePath(options.archivePath),
+        sourceArchivePath: options.archivePath
+          ? toRelativeStoragePath(options.archivePath)
+          : null,
         sampleCount: audioFiles.length,
-        genre: packMeta.genre,
-        tags: JSON.stringify(packMeta.tags),
+        presetCount: presetBundles.length,
+        genre: packGenre,
+        tags: JSON.stringify(packTags),
         published: true,
       },
     });
 
     if (audioFiles.length > 0) {
       await prisma.sample.createMany({
-        data: audioFiles.map((file) => {
-          const classification = classifySample(file.relativePath, file.fileName);
-          const displaySampleName = buildDisplayName(
-            displayName,
-            file.fileName,
-            classification,
-          );
+        data: audioFiles.map((file, i) => {
+          const classification = classifications[i];
+          const displaySampleName = buildDisplayName(displayName, file.fileName, classification);
           return {
             packId: pack.id,
             fileName: file.fileName,
@@ -155,6 +209,31 @@ export async function importPackFromArchive(
       });
     }
 
+    if (presetBundles.length > 0) {
+      await prisma.packAsset.createMany({
+        data: presetBundles.map((bundle) => {
+          const tags = [
+            "presets",
+            ...(bundle.presetKind ? [bundle.presetKind] : []),
+          ];
+          return {
+            packId: pack.id,
+            name: bundle.name,
+            relativePath: bundle.relativePath,
+            storagePath: toRelativeStoragePath(bundle.absolutePath),
+            assetType: "preset-folder",
+            presetKind: bundle.presetKind,
+            fileCount: bundle.fileCount,
+            tags: JSON.stringify(tags),
+            searchText: [displayName, producer, bundle.name, bundle.presetKind, ...tags]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase(),
+          };
+        }),
+      });
+    }
+
     await prisma.importJob.update({
       where: { id: job.id },
       data: {
@@ -172,6 +251,10 @@ export async function importPackFromArchive(
       packId: pack.id,
       slug: pack.slug,
       sampleCount: audioFiles.length,
+      presetCount: presetBundles.length,
+      presetKinds: [
+        ...new Set(presetBundles.map((b) => b.presetKind).filter(Boolean)),
+      ] as string[],
       jobId: job.id,
     };
   } catch (error) {

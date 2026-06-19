@@ -2,31 +2,35 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { SampleTable } from "@/components/SampleTable";
+import { SampleFilterBar } from "@/components/SampleFilterBar";
 import type { SampleListItem } from "@/components/SampleRow";
+import type { CopyFolder } from "@/lib/download-sample-client";
 
 export type SampleBrowserPreset = {
   rated?: boolean;
   favorite?: boolean;
   downloaded?: boolean;
+  copyFolder?: CopyFolder;
 };
-
-const TYPE_FILTERS = ["kick", "snare", "clap", "hat", "bass", "guitar", "vocal", "fx", "perc", "drums"];
 
 function SampleBrowserInner({
   title,
   preset,
   showRatingFilter = true,
+  hideTitle = false,
 }: {
   title: string;
   preset?: SampleBrowserPreset;
   showRatingFilter?: boolean;
+  hideTitle?: boolean;
 }) {
   const searchParams = useSearchParams();
   const presetRated = preset?.rated ?? false;
   const presetFavorite = preset?.favorite ?? false;
   const presetDownloaded = preset?.downloaded ?? false;
+  const copyFolder = preset?.copyFolder ?? (presetFavorite ? "likes" : presetDownloaded ? "copied" : "downloads");
 
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [typeFilter, setTypeFilter] = useState(searchParams.get("type") || "");
@@ -102,12 +106,13 @@ function SampleBrowserInner({
     if (!presetRated) setMinRating("");
   }
 
-  const hasActiveFilters =
+  const hasActiveFilters = Boolean(
     query.trim() ||
-    typeFilter ||
-    categoryFilter ||
-    selectedTags.length > 0 ||
-    (minRating && !presetRated);
+      typeFilter ||
+      categoryFilter ||
+      selectedTags.length > 0 ||
+      (minRating && !presetRated),
+  );
 
   const suggestedTags = popularTags
     .filter((t) => !selectedTags.includes(t.name))
@@ -115,7 +120,9 @@ function SampleBrowserInner({
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold tracking-tight">{title}</h1>
+      {!hideTitle && (
+        <h1 className="mb-6 text-2xl font-semibold tracking-tight">{title}</h1>
+      )}
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -138,132 +145,23 @@ function SampleBrowserInner({
         </button>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-600">
-          Tipo
-        </span>
-        {TYPE_FILTERS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTypeFilter(typeFilter === t ? "" : t)}
-            className={`rounded-full px-3 py-1 text-xs uppercase tracking-wide transition ${
-              typeFilter === t
-                ? "bg-sky-600 text-white"
-                : "bg-white/10 text-zinc-400 hover:bg-white/15"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-600">
-          Formato
-        </span>
-        {[
-          { value: "loop", label: "Loops" },
-          { value: "one-shot", label: "One-shots" },
-        ].map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setCategoryFilter(categoryFilter === value ? "" : value)}
-            className={`rounded-full px-3 py-1 text-xs transition ${
-              categoryFilter === value
-                ? "bg-sky-600 text-white"
-                : "bg-white/10 text-zinc-400 hover:bg-white/15"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-        {showRatingFilter && !presetRated && (
-          <select
-            value={minRating}
-            onChange={(e) => setMinRating(e.target.value)}
-            className="ml-2 rounded-lg border border-white/10 bg-[#141418] px-3 py-1 text-xs text-zinc-300"
-          >
-            <option value="">Qualquer nota</option>
-            <option value="5">5 estrelas</option>
-            <option value="4">4+ estrelas</option>
-            <option value="3">3+ estrelas</option>
-          </select>
-        )}
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={clearAllFilters}
-            className="ml-auto text-xs text-zinc-500 hover:text-zinc-300"
-          >
-            Limpar filtros
-          </button>
-        )}
-      </div>
-
-      <div className="mb-4 rounded-lg border border-white/10 bg-[#101014] p-3">
-        <div className="mb-2 flex items-center gap-2">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-600">
-            Hashtags
-          </span>
-          {selectedTags.length > 0 && (
-            <span className="text-[10px] text-zinc-600">
-              {selectedTags.length} selecionada(s) — combina todas
-            </span>
-          )}
-        </div>
-        <div className="mb-2 flex gap-2">
-          <input
-            type="text"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addTagFromInput();
-              }
-            }}
-            placeholder="clap, bass, drums..."
-            className="flex-1 rounded-md border border-white/10 bg-[#141418] px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-sky-500/50 focus:outline-none"
-          />
-          <button
-            type="button"
-            onClick={addTagFromInput}
-            className="rounded-md bg-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/15"
-          >
-            Adicionar
-          </button>
-        </div>
-        {selectedTags.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {selectedTags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => toggleTag(tag)}
-                className="flex items-center gap-1 rounded-full bg-sky-600/90 px-2.5 py-0.5 text-xs text-white"
-              >
-                #{tag}
-                <X className="h-3 w-3 opacity-70" />
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="flex flex-wrap gap-1.5">
-          {suggestedTags.map(({ name, count }) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => toggleTag(name)}
-              className="rounded-full bg-white/[0.06] px-2.5 py-0.5 text-xs text-zinc-500 transition hover:bg-white/10 hover:text-zinc-300"
-            >
-              #{name}
-              <span className="ml-1 text-zinc-600">({count})</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      <SampleFilterBar
+        typeFilter={typeFilter}
+        onTypeFilterChange={setTypeFilter}
+        categoryFilter={categoryFilter}
+        onCategoryFilterChange={setCategoryFilter}
+        selectedTags={selectedTags}
+        onToggleTag={toggleTag}
+        tagInput={tagInput}
+        onTagInputChange={setTagInput}
+        onAddTag={addTagFromInput}
+        suggestedTags={suggestedTags}
+        onClearAll={clearAllFilters}
+        hasActiveFilters={hasActiveFilters}
+        showRatingFilter={showRatingFilter && !presetRated}
+        minRating={minRating}
+        onMinRatingChange={setMinRating}
+      />
 
       <p className="mb-4 text-sm text-zinc-500">
         {loading ? "Buscando..." : `${samples.length} resultado(s)`}
@@ -278,6 +176,7 @@ function SampleBrowserInner({
           samples={samples}
           onMetaChange={search}
           onTagClick={toggleTag}
+          copyFolder={copyFolder}
         />
       )}
     </div>
@@ -288,6 +187,7 @@ export function SampleBrowser(props: {
   title: string;
   preset?: SampleBrowserPreset;
   showRatingFilter?: boolean;
+  hideTitle?: boolean;
 }) {
   return (
     <Suspense fallback={<p className="text-zinc-500">Carregando...</p>}>

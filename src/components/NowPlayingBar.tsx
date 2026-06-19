@@ -1,13 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { Pause, Play, Plus, Check, Heart } from "lucide-react";
+import { Pause, Play, Download, Check, Heart, Loader2 } from "lucide-react";
 import { useAudioPlayer } from "@/context/AudioPlayerContext";
 import { useSamplePeaks } from "@/hooks/useSamplePeaks";
 import { useSampleMeta } from "@/hooks/useSampleMeta";
 import { Waveform } from "./Waveform";
 import { StarRating } from "./StarRating";
 import { cn, formatDuration, formatKey, parseTagsJson } from "@/lib/utils";
+import { downloadSampleFile, usesCopyFlow } from "@/lib/download-sample-client";
 import { resolveSampleBpm, resolveSampleKey } from "@/lib/sample-metadata";
 import { useMemo, useState } from "react";
 import type { SampleListItem } from "./SampleRow";
@@ -17,6 +18,7 @@ function NowPlayingBarInner({ sample }: { sample: SampleListItem }) {
   const { peaks } = useSamplePeaks(sample.id, sample.waveformPeaks, true);
   const { rating, favorite, updateMeta } = useSampleMeta(sample.id, sample.meta);
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const bpm = useMemo(
     () => resolveSampleBpm(sample.bpm, sample.fileName, sample.relativePath),
@@ -29,20 +31,33 @@ function NowPlayingBarInner({ sample }: { sample: SampleListItem }) {
 
   const coverUrl = sample.pack.coverPath ? `/api/covers/${sample.pack.id}` : null;
   const tags = [
-    ...parseTagsJson(sample.tags),
-    sample.type,
-    sample.instrument,
-  ].filter(Boolean);
+    ...new Set(
+      [...parseTagsJson(sample.tags), sample.type, sample.instrument]
+        .filter(Boolean)
+        .map((t) => String(t).toLowerCase()),
+    ),
+  ];
 
-  async function handleCopyToDaw() {
+  async function handleDownloadSample() {
+    setDownloading(true);
     try {
-      const res = await fetch(`/api/samples/${sample.id}/copy`, { method: "POST" });
-      const data = (await res.json()) as { path?: string };
-      if (data.path) await navigator.clipboard.writeText(data.path);
+      const result = await downloadSampleFile(
+        sample.id,
+        sample.fileName,
+        "downloads",
+        sample.pack.slug,
+      );
+      if (!result.ok) {
+        window.alert(result.error ?? "Não foi possível copiar o sample");
+        return;
+      }
+      if (result.mode === "copy" && result.clipboardOk === false && result.path) {
+        window.alert(`Sample salvo em:\n${result.path}\n\nCole no browser de arquivos do DAW.`);
+      }
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* ignore */
+      setTimeout(() => setCopied(false), 2500);
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -70,8 +85,8 @@ function NowPlayingBarInner({ sample }: { sample: SampleListItem }) {
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{sample.fileName}</p>
           <div className="flex flex-wrap gap-1">
-            {tags.slice(0, 5).map((t) => (
-              <span key={t} className="text-[10px] text-zinc-500">
+            {tags.slice(0, 5).map((t, i) => (
+              <span key={`${sample.id}-tag-${i}`} className="text-[10px] text-zinc-500">
                 #{t}
               </span>
             ))}
@@ -95,14 +110,29 @@ function NowPlayingBarInner({ sample }: { sample: SampleListItem }) {
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => void handleCopyToDaw()}
+            disabled={downloading}
+            onClick={() => void handleDownloadSample()}
             className={cn(
-              "rounded p-2",
-              copied ? "text-emerald-400" : "text-zinc-400 hover:text-white",
+              "rounded-md p-2.5 transition",
+              copied ? "text-emerald-400" : "text-zinc-400 hover:bg-white/5 hover:text-white",
+              downloading && "opacity-60",
             )}
-            title="Copiar para DAW"
+            title={
+              usesCopyFlow()
+                ? "Copia o sample — cole o caminho no browser de arquivos do DAW"
+                : "Baixar sample"
+            }
           >
-            {copied ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {downloading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : copied ? (
+              <span className="flex items-center gap-1">
+                <Check className="h-4 w-4" />
+                <span className="text-xs font-semibold">Copiado</span>
+              </span>
+            ) : (
+              <Download className="h-5 w-5" />
+            )}
           </button>
           <button
             type="button"

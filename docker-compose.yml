@@ -1,0 +1,20 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: "file:./prisma/prod.db"
+    volumes:
+      - beatstack_storage:/app/storage
+      - beatstack_db:/app/prisma
+
+volumes:
+  beatstack_storage:
+  beatstack_db:

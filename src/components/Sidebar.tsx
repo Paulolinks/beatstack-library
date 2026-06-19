@@ -10,6 +10,7 @@ import {
   Heart,
   Download,
   Disc3,
+  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,8 @@ const COLLECTIONS = [
   { href: "/collections/likes", label: "Likes", icon: Heart },
   { href: "/collections/copied", label: "Copiados", icon: Download },
 ];
+
+const ADMIN = [{ href: "/admin/packs", label: "Gerenciar packs", icon: Settings2 }];
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -70,6 +73,28 @@ export function Sidebar() {
         </p>
         <ul className="space-y-0.5">
           {COLLECTIONS.map(({ href, label, icon: Icon }) => (
+            <li key={href}>
+              <Link
+                href={href}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                  isActive(href)
+                    ? "bg-white/10 text-white"
+                    : "text-zinc-400 hover:bg-white/5 hover:text-zinc-200",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        <p className="mb-2 mt-6 px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+          Admin
+        </p>
+        <ul className="space-y-0.5">
+          {ADMIN.map(({ href, label, icon: Icon }) => (
             <li key={href}>
               <Link
                 href={href}
