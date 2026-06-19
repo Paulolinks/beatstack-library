@@ -10,6 +10,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "desktop": "electron desktop/main.js",
+    "desktop:remote": "electron desktop/main.js",
     "desktop:dev": "concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:3000 && electron desktop/main.js\"",
     "lint": "eslint",
     "db:generate": "prisma generate",

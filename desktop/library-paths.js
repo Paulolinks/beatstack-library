@@ -1,16 +1,14 @@
-import fs from "fs";
-import os from "os";
-import path from "path";
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 
-export type LibraryFolder = "downloads" | "likes" | "copied";
-
-const FOLDER_NAMES: Record<LibraryFolder, string> = {
+const FOLDER_NAMES = {
   downloads: "Downloads",
   likes: "Likes",
   copied: "Copied",
 };
 
-export function getLibraryRoot(): string {
+function getLibraryRoot() {
   const documents =
     process.env.USERPROFILE != null
       ? path.join(process.env.USERPROFILE, "Documents")
@@ -18,11 +16,11 @@ export function getLibraryRoot(): string {
   return path.join(documents, "BeatStack Library");
 }
 
-export function getLibraryFolder(folder: LibraryFolder): string {
-  return path.join(getLibraryRoot(), FOLDER_NAMES[folder]);
+function getLibraryFolder(folder) {
+  return path.join(getLibraryRoot(), FOLDER_NAMES[folder] || FOLDER_NAMES.downloads);
 }
 
-export function ensureLibraryFolder(folder: LibraryFolder): string {
+function ensureLibraryFolder(folder) {
   const dir = getLibraryFolder(folder);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -30,19 +28,23 @@ export function ensureLibraryFolder(folder: LibraryFolder): string {
   return dir;
 }
 
-export function sanitizePathSegment(name: string): string {
-  return name.replace(/[<>:"/\\|?*]/g, "_").trim() || "pack";
+function sanitizePathSegment(name) {
+  return String(name).replace(/[<>:"/\\|?*]/g, "_").trim() || "pack";
 }
 
-export function buildLocalSamplePath(
-  folder: LibraryFolder,
-  packSlug: string,
-  fileName: string,
-): string {
+function buildLocalSamplePath(folder, packSlug, fileName) {
   const packDir = path.join(ensureLibraryFolder(folder), sanitizePathSegment(packSlug));
   if (!fs.existsSync(packDir)) {
     fs.mkdirSync(packDir, { recursive: true });
   }
-  const safeName = fileName.replace(/[<>:"/\\|?*]/g, "_");
+  const safeName = String(fileName).replace(/[<>:"/\\|?*]/g, "_");
   return path.join(packDir, safeName);
 }
+
+module.exports = {
+  getLibraryRoot,
+  getLibraryFolder,
+  ensureLibraryFolder,
+  sanitizePathSegment,
+  buildLocalSamplePath,
+};

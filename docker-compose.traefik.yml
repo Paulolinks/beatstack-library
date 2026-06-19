@@ -1,0 +1,46 @@
+# Stack isolado para VPS com Traefik (n8n já rodando).
+# NÃO publica porta no host — só o Traefik expõe HTTPS.
+#
+# Uso:
+#   docker compose -p beatstack -f docker-compose.traefik.yml up -d --build
+#
+# 1) Troque library.SEUDOMINIO.com pelo seu subdomínio
+# 2) Troque root_default pela rede do Traefik (passo 1 do guia)
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: "file:./prisma/prod.db"
+    volumes:
+      - beatstack_storage:/app/storage
+      - beatstack_db:/app/prisma
+    networks:
+      - beatstack_internal
+      - traefik_public
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.beatstack.rule=Host(`library.SEUDOMINIO.com`)
+      - traefik.http.routers.beatstack.entrypoints=websecure
+      - traefik.http.routers.beatstack.tls=true
+      - traefik.http.routers.beatstack.tls.certresolver=letsencrypt
+      - traefik.http.services.beatstack.loadbalancer.server.port=3000
+
+networks:
+  beatstack_internal:
+    name: beatstack_internal
+  traefik_public:
+    external: true
+    name: root_default
+
+volumes:
+  beatstack_storage:
+    name: beatstack_storage
+  beatstack_db:
+    name: beatstack_db
