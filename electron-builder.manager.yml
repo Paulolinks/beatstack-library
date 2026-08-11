@@ -1,0 +1,55 @@
+appId: com.beatstack.manager
+productName: BeatStack Manager
+copyright: Copyright © BeatStack
+artifactName: ${productName}-Setup-${version}.${ext}
+extraMetadata:
+  version: "2.0.19"
+  name: beatstack-manager
+  description: BeatStack Manager - gerenciador local de packs
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+directories:
+  output: dist-build-manager-release
+afterPack: "./scripts/electron-after-pack-manager.cjs"
+files:
+  - desktop/**/*
+  - "!desktop/default-server.json"
+  - "!desktop/**/*.map"
+  - package.json
+  - "!node_modules/**/*"
+extraResources:
+  - from: desktop/manager-mode.json
+    to: manager-mode.json
+  - from: scripts/manager-template.db
+    to: manager-template.db
+  - from: .next/standalone
+    to: standalone
+    filter:
+      - "**/*"
+  - from: .next/static
+    to: standalone/.next/static
+    filter:
+      - "**/*"
+  - from: public
+    to: standalone/public
+    filter:
+      - "**/*"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: BeatStack Manager
+  uninstallDisplayName: BeatStack Manager
+  installerLanguages:
+    - pt_BR
+    - en_US

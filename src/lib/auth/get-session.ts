@@ -1,5 +1,10 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { isManagerMode } from "@/lib/app-mode";
+import {
+  fetchLicenseSession,
+  getLicenseCookieName,
+} from "@/lib/auth/license-server";
 import {
   getSessionCookieName,
   isAuthDisabled,
@@ -8,6 +13,7 @@ import {
   type SessionPayload,
 } from "@/lib/auth/session";
 import { resolveEffectiveRole } from "@/lib/auth/admin-policy";
+import { hasLibraryAccess, hasManagerLicense } from "@/lib/auth/product-access";
 
 export type AuthUser = SessionPayload & { name: string | null };
 
@@ -15,6 +21,29 @@ export type SessionResult = {
   session: AuthUser | null;
   reason?: SessionInvalidReason;
 };
+
+async function resolveManagerLicenseSession(token: string | undefined): Promise<SessionResult> {
+  if (!token) return { session: null };
+
+  const data = await fetchLicenseSession(token);
+  if (!data.user) {
+    return {
+      session: null,
+      reason: data.reason === "SESSION_REPLACED" ? "SESSION_REPLACED" : "INVALID_TOKEN",
+    };
+  }
+
+  return {
+    session: {
+      userId: `license:${data.user.email}`,
+      email: data.user.email,
+      role: resolveEffectiveRole(data.user.email, data.user.role),
+      approved: true,
+      name: data.user.name,
+      sessionId: "license",
+    },
+  };
+}
 
 async function resolveSessionFromToken(token: string | undefined): Promise<SessionResult> {
   if (!token) return { session: null };
@@ -29,14 +58,42 @@ async function resolveSessionFromToken(token: string | undefined): Promise<Sessi
       email: true,
       role: true,
       approved: true,
+      managerLicensed: true,
       name: true,
       activeSessionId: true,
+      activeManagerSessionId: true,
     },
   });
 
-  if (!user || !user.approved) return { session: null };
+  if (!user) return { session: null };
 
-  if (!user.activeSessionId || user.activeSessionId !== payload.sessionId) {
+  if (payload.clientType === "sync") {
+    const role = resolveEffectiveRole(user.email, user.role);
+    if (role !== "admin") return { session: null, reason: "INVALID_TOKEN" };
+    return {
+      session: {
+        userId: user.id,
+        email: user.email,
+        role,
+        approved: user.approved,
+        name: user.name,
+        sessionId: payload.sessionId,
+        clientType: "sync",
+      },
+    };
+  }
+
+  if (payload.clientType === "manager") {
+    if (!hasManagerLicense(user.email, user.managerLicensed)) {
+      return { session: null, reason: "INVALID_TOKEN" };
+    }
+  } else if (!hasLibraryAccess(user.email, user.approved)) {
+    return { session: null };
+  }
+
+  const activeId =
+    payload.clientType === "manager" ? user.activeManagerSessionId : user.activeSessionId;
+  if (!activeId || activeId !== payload.sessionId) {
     return { session: null, reason: "SESSION_REPLACED" };
   }
 
@@ -44,10 +101,14 @@ async function resolveSessionFromToken(token: string | undefined): Promise<Sessi
     session: {
       userId: user.id,
       email: user.email,
-      role: resolveEffectiveRole(user.email, user.role),
+      role:
+        payload.clientType === "manager"
+          ? "admin"
+          : resolveEffectiveRole(user.email, user.role),
       approved: user.approved,
       name: user.name,
       sessionId: payload.sessionId,
+      clientType: payload.clientType,
     },
   };
 }
@@ -67,6 +128,12 @@ export async function getSessionResult(): Promise<SessionResult> {
   }
 
   const cookieStore = await cookies();
+
+  if (isManagerMode()) {
+    const licenseToken = cookieStore.get(getLicenseCookieName())?.value;
+    return resolveManagerLicenseSession(licenseToken);
+  }
+
   const token = cookieStore.get(getSessionCookieName())?.value;
   return resolveSessionFromToken(token);
 }

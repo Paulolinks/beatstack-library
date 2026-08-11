@@ -9,6 +9,7 @@ export const PACK_GENRE_OPTIONS = [
   { value: "rock", label: "Rock / Metal" },
   { value: "edm", label: "EDM" },
   { value: "pop", label: "Pop" },
+  { value: "__custom__", label: "Outro — escrever manualmente" },
 ] as const;
 
 const GENRE_DETECT_RULES: Array<{ pattern: RegExp; tag: string }> = [

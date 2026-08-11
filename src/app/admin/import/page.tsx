@@ -25,6 +25,11 @@ import {
   PACK_GENRE_OPTIONS,
   genreLabel,
 } from "@/lib/pack-genres";
+import { CopyrightUploadNotice } from "@/components/legal/CopyrightUploadNotice";
+import { ManagerStoragePanel } from "@/components/ManagerStoragePanel";
+import { SyncPacksFolderButton } from "@/components/SyncPacksFolderButton";
+import { hasCurrentLegalAcceptance } from "@/lib/legal/acceptance-client";
+import { isManagerModeClient } from "@/lib/app-mode-client";
 
 interface ImportResult {
   success: boolean;
@@ -36,7 +41,7 @@ interface ImportResult {
   message: string;
 }
 
-type ImportMode = "archive" | "folder";
+type ImportMode = "archive" | "folder" | "localPath";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -45,13 +50,16 @@ function formatSize(bytes: number): string {
 
 export default function ImportPage() {
   const router = useRouter();
+  const isManager = isManagerModeClient();
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<ImportMode>("archive");
   const [file, setFile] = useState<File | null>(null);
   const [folderEntries, setFolderEntries] = useState<FolderFileEntry[]>([]);
+  const [localPath, setLocalPath] = useState<string | null>(null);
   const [packName, setPackName] = useState("");
   const [producer, setProducer] = useState("");
   const [genre, setGenre] = useState("");
+  const [customGenre, setCustomGenre] = useState("");
   const [autoGenres, setAutoGenres] = useState<string[]>([]);
   const [userEditedName, setUserEditedName] = useState(false);
   const [userEditedProducer, setUserEditedProducer] = useState(false);
@@ -61,6 +69,25 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [authDisabled, setAuthDisabled] = useState(false);
+
+  useEffect(() => {
+    void fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d: { authDisabled?: boolean }) => {
+        setAuthDisabled(Boolean(d.authDisabled));
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (authDisabled || isManager) return;
+    void hasCurrentLegalAcceptance().then((ok) => {
+      if (!ok) {
+        router.replace("/legal/accept?next=/admin/import");
+      }
+    });
+  }, [router, authDisabled, isManager]);
 
   useEffect(() => {
     if (!coverFile) {
@@ -72,11 +99,12 @@ export default function ImportPage() {
     return () => URL.revokeObjectURL(url);
   }, [coverFile]);
 
-  const hasSelection = Boolean(file || folderEntries.length > 0);
+  const hasSelection = Boolean(file || folderEntries.length > 0 || localPath);
 
   const resetSelection = useCallback(() => {
     setFile(null);
     setFolderEntries([]);
+    setLocalPath(null);
     setMode("archive");
     setAutoGenres([]);
     setCoverFile(null);
@@ -96,36 +124,135 @@ export default function ImportPage() {
     return root || first || "Pasta importada";
   }
 
+  function resolveGenreToSend(): string {
+    if (genre === "__custom__") {
+      return customGenre.trim().toLowerCase().replace(/\s+/g, "-");
+    }
+    return genre.trim() || autoGenres[0] || "";
+  }
+
+  async function coverToPayload(): Promise<
+    { base64: string; mimeType: string; fileName: string } | undefined
+  > {
+    if (!coverFile) return undefined;
+    const buffer = await coverFile.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+    return {
+      base64: btoa(binary),
+      mimeType: coverFile.type || "image/jpeg",
+      fileName: coverFile.name,
+    };
+  }
+
   async function submitImport() {
+    if (!authDisabled && !isManager) {
+      const legalOk = await hasCurrentLegalAcceptance();
+      if (!legalOk) {
+        router.push("/legal/accept?next=/admin/import");
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
     setResult(null);
 
-    const formData = new FormData();
-    if (packName.trim()) formData.append("packName", packName.trim());
-    if (producer.trim()) formData.append("producer", producer.trim());
-    const genreToSend = genre.trim() || autoGenres[0] || "";
-    if (genreToSend) formData.append("genre", genreToSend);
-    if (coverFile) formData.append("cover", coverFile);
-
-    if (mode === "folder" && folderEntries.length > 0) {
-      formData.append("importType", "folder");
-      for (const entry of folderEntries) {
-        formData.append("files", entry.file);
-        formData.append("paths", entry.path);
-      }
-    } else if (file) {
-      formData.append("importType", "archive");
-      formData.append("file", file);
-    } else {
-      setError("Selecione um arquivo (.zip / .rar) ou uma pasta");
+    const genreToSend = resolveGenreToSend();
+    if (genre === "__custom__" && !genreToSend) {
+      setError("Escreva o nome do gênero manualmente");
       setLoading(false);
       return;
     }
 
     try {
+      if (mode === "localPath" && localPath) {
+        const cover = await coverToPayload();
+        const res = await fetch("/api/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            importType: "localPath",
+            sourceDirectory: localPath,
+            packName: packName.trim() || undefined,
+            producer: producer.trim() || undefined,
+            genre: genreToSend || undefined,
+            cover,
+          }),
+        });
+        let data: ImportResult & { error?: string } = {
+          success: false,
+          packId: "",
+          slug: "",
+          sampleCount: 0,
+          message: "",
+        };
+        try {
+          data = (await res.json()) as typeof data;
+        } catch {
+          setError(
+            res.ok
+              ? "Resposta inválida do servidor"
+              : `Falha na importação (HTTP ${res.status}). Packs grandes podem demorar — tente de novo.`,
+          );
+          return;
+        }
+        if (!res.ok) {
+          setError(data.error || "Falha na importação");
+        } else {
+          setResult(data);
+          resetSelection();
+          router.refresh();
+        }
+        return;
+      }
+
+      if (mode === "folder" && folderEntries.length > 200 && isManager) {
+        setError(
+          `Esta pasta tem ${folderEntries.length} arquivos. No Manager use “Pasta no disco (packs grandes)” — não “Selecionar pasta”. Assim o app lê direto do HD sem upload.`,
+        );
+        return;
+      }
+
+      const formData = new FormData();
+      if (packName.trim()) formData.append("packName", packName.trim());
+      if (producer.trim()) formData.append("producer", producer.trim());
+      if (genreToSend) formData.append("genre", genreToSend);
+      if (coverFile) formData.append("cover", coverFile);
+
+      if (mode === "folder" && folderEntries.length > 0) {
+        formData.append("importType", "folder");
+        for (const entry of folderEntries) {
+          formData.append("files", entry.file);
+          formData.append("paths", entry.path);
+        }
+      } else if (file) {
+        formData.append("importType", "archive");
+        formData.append("file", file);
+      } else {
+        setError("Selecione um arquivo (.zip / .rar) ou uma pasta");
+        return;
+      }
+
       const res = await fetch("/api/import", { method: "POST", body: formData });
-      const data = (await res.json()) as ImportResult & { error?: string };
+      let data: ImportResult & { error?: string } = {
+        success: false,
+        packId: "",
+        slug: "",
+        sampleCount: 0,
+        message: "",
+      };
+      try {
+        data = (await res.json()) as typeof data;
+      } catch {
+        setError(
+          isManager
+            ? "Falha ao enviar. Para packs grandes, use “Pasta no disco (packs grandes)”."
+            : "Erro de rede ao enviar o arquivo",
+        );
+        return;
+      }
       if (!res.ok) {
         setError(data.error || "Falha na importação");
       } else {
@@ -133,11 +260,33 @@ export default function ImportPage() {
         resetSelection();
         router.refresh();
       }
-    } catch {
-      setError("Erro de rede ao enviar o arquivo");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      setError(
+        isManager
+          ? `Falha ao importar${msg ? `: ${msg}` : ""}. Para packs grandes (5 GB+), use “Pasta no disco (packs grandes)”.`
+          : "Erro de rede ao enviar o arquivo",
+      );
     } finally {
       setLoading(false);
     }
+  }
+
+  async function pickLocalDiskFolder() {
+    if (!window.beatstack?.selectDirectory) {
+      setError("Pasta no disco só funciona no app desktop BeatStack Manager");
+      return;
+    }
+    const picked = await window.beatstack.selectDirectory({
+      title: "Selecionar pasta já extraída do pack",
+    });
+    if (!picked.ok || !picked.path) return;
+    setError(null);
+    setLocalPath(picked.path);
+    setFile(null);
+    setFolderEntries([]);
+    setMode("localPath");
+    applyAutoFromSource(picked.path.split(/[/\\]/).pop() || "Pasta importada");
   }
 
   function pickArchive(selected: File | null) {
@@ -165,9 +314,19 @@ export default function ImportPage() {
       setError("Nenhum áudio (.wav, .mp3, .flac…) encontrado nesta pasta");
       return;
     }
+    if (isManager && entries.length > 200) {
+      setError(
+        `Pasta com ${entries.length} arquivos — use o botão azul “Pasta no disco (packs grandes)”. “Selecionar pasta” só serve para pastas pequenas.`,
+      );
+      setFolderEntries([]);
+      setFile(null);
+      setLocalPath(null);
+      return;
+    }
     setError(null);
     setFolderEntries(entries);
     setFile(null);
+    setLocalPath(null);
     setMode("folder");
     applyAutoFromSource(folderSourceName(entries));
   }
@@ -200,13 +359,17 @@ export default function ImportPage() {
 
   return (
     <div className="mx-auto max-w-xl">
+      {!authDisabled && !isManager && <CopyrightUploadNotice onAcknowledged={() => {}} />}
       <h1 className="mb-2 text-2xl font-semibold tracking-tight">Importar sample pack</h1>
-      <p className="mb-8 text-sm text-zinc-500">
+      <p className="mb-6 text-sm text-zinc-500">
         Aceita <strong className="text-zinc-400">.zip</strong>,{" "}
         <strong className="text-zinc-400">.rar</strong> ou{" "}
-        <strong className="text-zinc-400">pasta descompactada</strong>. Arraste ou selecione,
-        depois clique em Importar pack.
+        <strong className="text-zinc-400">pasta descompactada</strong>. Para arquivos grandes
+        (5–15 GB), extraia fora do app e use <strong className="text-zinc-400">Pasta no disco</strong>.
       </p>
+
+      {isManager && <ManagerStoragePanel />}
+      {isManager && <SyncPacksFolderButton />}
 
       <form
         onSubmit={(e) => {
@@ -244,6 +407,14 @@ export default function ImportPage() {
                 <span className="text-sm font-medium text-zinc-200">{file.name}</span>
                 <span className="mt-1 text-xs text-zinc-500">{formatSize(file.size)}</span>
               </>
+            ) : mode === "localPath" && localPath ? (
+              <>
+                <FolderOpen className="mb-2 h-8 w-8 text-sky-400" />
+                <span className="text-sm font-medium text-zinc-200">Pasta no disco</span>
+                <span className="mt-1 max-w-full break-all px-2 text-center text-xs text-zinc-500">
+                  {localPath}
+                </span>
+              </>
             ) : mode === "folder" && folderEntries.length > 0 ? (
               <>
                 <FolderOpen className="mb-2 h-8 w-8 text-violet-400" />
@@ -276,8 +447,20 @@ export default function ImportPage() {
                 onClick={() => folderInputRef.current?.click()}
                 className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/15"
               >
-                Selecionar pasta
+                Pasta pequena
               </button>
+              {isManager && (
+                <button
+                  type="button"
+                  onClick={() => void pickLocalDiskFolder()}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-medium text-white",
+                    mode === "localPath" ? "bg-sky-500 ring-2 ring-sky-300/40" : "bg-sky-600/80 hover:bg-sky-500",
+                  )}
+                >
+                  Pasta no disco (packs grandes)
+                </button>
+              )}
               <input
                 ref={folderInputRef}
                 type="file"
@@ -288,6 +471,13 @@ export default function ImportPage() {
               />
             </div>
           </div>
+          {isManager && (
+            <p className="mt-2 text-xs text-zinc-600">
+              Packs grandes: extraia com WinRAR/7-Zip em{" "}
+              <strong className="text-zinc-400">D:\…\packs\NomeDoPack</strong> e use o botão azul{" "}
+              <strong className="text-zinc-400">Pasta no disco</strong> (não “Pasta pequena”).
+            </p>
+          )}
         </div>
 
         {autoGenres.length > 0 ? (
@@ -300,7 +490,7 @@ export default function ImportPage() {
             ))}
             <span className="text-sky-300/70">— confira abaixo ou ajuste manualmente</span>
           </div>
-        ) : (file || folderEntries.length > 0) ? (
+        ) : (file || folderEntries.length > 0 || localPath) ? (
           <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-200">
             Gênero não detectado automaticamente — selecione o tipo do pack abaixo para facilitar
             nas buscas.
@@ -350,8 +540,18 @@ export default function ImportPage() {
               </option>
             ))}
           </select>
+          {genre === "__custom__" && (
+            <input
+              type="text"
+              value={customGenre}
+              onChange={(e) => setCustomGenre(e.target.value)}
+              placeholder="Ex: baile-funk, riddim, ambient..."
+              className="mt-2 w-full rounded-lg border border-white/10 bg-[#0d0d0f] px-3 py-2 text-sm focus:border-violet-500/50 focus:outline-none"
+            />
+          )}
           <p className="mt-1.5 text-xs text-zinc-600">
-            Aparece como filtro na biblioteca (#dubstep, #dnb, etc.)
+            Aparece como filtro na biblioteca (#dubstep, #dnb, etc.). Use “Outro” para escrever
+            qualquer estilo.
           </p>
         </div>
 
@@ -401,7 +601,7 @@ export default function ImportPage() {
 
         <button
           type="submit"
-          disabled={loading || (!file && folderEntries.length === 0)}
+          disabled={loading || (!file && folderEntries.length === 0 && !localPath)}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 py-2.5 text-sm font-medium text-white transition hover:bg-violet-500 disabled:opacity-50"
         >
           {loading ? (

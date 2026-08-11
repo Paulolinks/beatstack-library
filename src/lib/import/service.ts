@@ -6,6 +6,7 @@ import {
   ensureStorageDirs,
   getInboxDir,
   getPackDir,
+  getPacksDir,
   toRelativeStoragePath,
 } from "@/lib/storage";
 import {
@@ -29,6 +30,8 @@ import {
 
 export interface ImportPackOptions {
   archivePath?: string;
+  /** Pasta já extraída no disco (Manager) — evita upload HTTP de packs grandes. */
+  sourceDirectory?: string;
   originalFileName: string;
   packName?: string;
   producer?: string;
@@ -44,6 +47,50 @@ export interface ImportPackResult {
   presetCount: number;
   presetKinds: string[];
   jobId: string;
+}
+
+function pathsEqual(a: string, b: string): boolean {
+  return path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
+}
+
+function isPathInside(parent: string, child: string): boolean {
+  const root = path.resolve(parent);
+  const target = path.resolve(child);
+  if (pathsEqual(root, target)) return true;
+  const rel = path.relative(root, target);
+  return Boolean(rel) && !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+
+/**
+ * Packs grandes já extraídos em storage/packs (ou fora):
+ * - se já está em packs/: só renomeia para o slug (sem copiar)
+ * - senão: copia UMA vez direto para packs/<slug>
+ */
+function materializeSourceDirectory(sourceDirectory: string, packDir: string): void {
+  const sourceDir = path.resolve(sourceDirectory);
+  if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
+    throw new Error("Pasta de origem não encontrada ou inválida");
+  }
+
+  const packsRoot = getPacksDir();
+  fs.mkdirSync(packsRoot, { recursive: true });
+
+  if (pathsEqual(sourceDir, packDir)) {
+    return;
+  }
+
+  if (isPathInside(packsRoot, sourceDir)) {
+    if (fs.existsSync(packDir)) {
+      fs.rmSync(packDir, { recursive: true, force: true });
+    }
+    fs.renameSync(sourceDir, packDir);
+    return;
+  }
+
+  if (fs.existsSync(packDir)) {
+    fs.rmSync(packDir, { recursive: true, force: true });
+  }
+  fs.cpSync(sourceDir, packDir, { recursive: true });
 }
 
 async function uniqueSlug(base: string): Promise<string> {
@@ -64,52 +111,55 @@ export async function importPackFromArchive(
   const job = await prisma.importJob.create({
     data: {
       fileName: options.originalFileName,
-      inboxPath: options.archivePath ?? options.originalFileName,
+      inboxPath: options.archivePath ?? options.sourceDirectory ?? options.originalFileName,
       status: "PROCESSING",
       progress: 5,
     },
   });
 
-  try {
-    const extractDir = path.join(getInboxDir(), `extract-${job.id}`);
-    if (fs.existsSync(extractDir)) {
-      fs.rmSync(extractDir, { recursive: true, force: true });
-    }
-    fs.mkdirSync(extractDir, { recursive: true });
+  let extractDir: string | null = null;
 
+  try {
     await prisma.importJob.update({
       where: { id: job.id },
       data: { progress: 15 },
     });
 
-    if (options.folderFiles?.length) {
-      writeFolderFilesToDir(options.folderFiles, extractDir);
-    } else if (options.archivePath) {
-      await extractArchive(options.archivePath, extractDir);
-    } else {
-      throw new Error("Nenhum arquivo ou pasta enviado para importação");
-    }
-
-    await prisma.importJob.update({
-      where: { id: job.id },
-      data: { progress: 30 },
-    });
-
-    const defaultName = options.folderFiles?.length
-      ? inferPackNameFromFolderPaths(options.folderFiles.map((f) => f.relativePath))
-      : inferPackNameFromArchive(options.originalFileName);
+    const defaultName = options.sourceDirectory
+      ? path.basename(path.resolve(options.sourceDirectory))
+      : options.folderFiles?.length
+        ? inferPackNameFromFolderPaths(options.folderFiles.map((f) => f.relativePath))
+        : inferPackNameFromArchive(options.originalFileName);
 
     const folderName = options.packName || defaultName;
     const packMeta = inferPackMeta(folderName);
     const displayName = options.packName || packMeta.name;
     const producer = options.producer || packMeta.producer;
     const slug = await uniqueSlug(displayName);
-
     const packDir = getPackDir(slug);
-    if (fs.existsSync(packDir)) {
-      fs.rmSync(packDir, { recursive: true, force: true });
+
+    if (options.sourceDirectory) {
+      materializeSourceDirectory(options.sourceDirectory, packDir);
+    } else {
+      extractDir = path.join(getInboxDir(), `extract-${job.id}`);
+      if (fs.existsSync(extractDir)) {
+        fs.rmSync(extractDir, { recursive: true, force: true });
+      }
+      fs.mkdirSync(extractDir, { recursive: true });
+
+      if (options.folderFiles?.length) {
+        writeFolderFilesToDir(options.folderFiles, extractDir);
+      } else if (options.archivePath) {
+        await extractArchive(options.archivePath, extractDir);
+      } else {
+        throw new Error("Nenhum arquivo ou pasta enviado para importação");
+      }
+
+      if (fs.existsSync(packDir)) {
+        fs.rmSync(packDir, { recursive: true, force: true });
+      }
+      fs.cpSync(extractDir, packDir, { recursive: true });
     }
-    fs.cpSync(extractDir, packDir, { recursive: true });
 
     await prisma.importJob.update({
       where: { id: job.id },
@@ -243,7 +293,7 @@ export async function importPackFromArchive(
       },
     });
 
-    if (fs.existsSync(extractDir)) {
+    if (extractDir && fs.existsSync(extractDir)) {
       fs.rmSync(extractDir, { recursive: true, force: true });
     }
 
@@ -263,6 +313,9 @@ export async function importPackFromArchive(
       where: { id: job.id },
       data: { status: "FAILED", errorMessage: message },
     });
+    if (extractDir && fs.existsSync(extractDir)) {
+      fs.rmSync(extractDir, { recursive: true, force: true });
+    }
     throw error;
   }
 }

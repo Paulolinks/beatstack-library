@@ -4,11 +4,13 @@ import { isAuthDisabled } from "@/lib/auth/session";
 
 export async function GET() {
   const { session, reason } = await getSessionResult();
+  const authDisabled = isAuthDisabled();
 
   if (!session) {
     return NextResponse.json({
       user: null,
       reason: reason ?? null,
+      authDisabled,
     });
   }
 
@@ -18,6 +20,6 @@ export async function GET() {
       name: session.name,
       role: session.role,
     },
-    authDisabled: isAuthDisabled(),
+    authDisabled,
   });
 }

@@ -6,6 +6,7 @@ export interface SessionPayload {
   role: string;
   approved: boolean;
   sessionId: string;
+  clientType?: "library" | "manager" | "sync";
 }
 
 export type SessionInvalidReason = "SESSION_REPLACED" | "INVALID_TOKEN";
@@ -42,6 +43,7 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
     const role = payload.role;
     const approved = payload.approved;
     const sessionId = payload.sessionId;
+    const clientType = payload.clientType;
     if (
       typeof userId !== "string" ||
       typeof email !== "string" ||
@@ -55,6 +57,10 @@ export async function verifySessionToken(token: string): Promise<SessionPayload 
       role: typeof role === "string" ? role : "user",
       approved: approved === true,
       sessionId,
+      clientType:
+        clientType === "manager" || clientType === "library" || clientType === "sync"
+          ? clientType
+          : undefined,
     };
   } catch {
     return null;
