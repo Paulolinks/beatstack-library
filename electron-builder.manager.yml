@@ -3,7 +3,7 @@ productName: BeatStack Manager
 copyright: Copyright © BeatStack
 artifactName: ${productName}-Setup-${version}.${ext}
 extraMetadata:
-  version: "2.0.22"
+  version: "2.0.23"
   name: beatstack-manager
   description: BeatStack Manager - gerenciador local de packs
 npmRebuild: false
