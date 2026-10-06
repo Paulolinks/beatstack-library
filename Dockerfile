@@ -29,6 +29,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
+# /app/prisma é o volume do banco: o schema de lá fica preso na versão antiga.
+COPY --from=builder /app/prisma/schema.prisma ./prisma-schema/schema.prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
@@ -40,4 +42,4 @@ RUN mkdir -p storage prisma
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --schema=./prisma/schema.prisma --skip-generate && exec node server.js"]
+CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --schema=./prisma-schema/schema.prisma --skip-generate && exec node server.js"]
