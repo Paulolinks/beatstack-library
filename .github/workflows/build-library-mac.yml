@@ -26,9 +26,17 @@ jobs:
         run: npm ci
 
       - name: Gerar .dmg (Apple Silicon + Intel)
-        run: npx electron-builder --mac --config electron-builder.client.yml --publish never
+        run: |
+          set -o pipefail
+          npx electron-builder --mac --config electron-builder.client.yml --publish never 2>&1 | tee build.log
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Mostrar erro do build
+        if: failure()
+        run: |
+          msg=$(tail -n 40 build.log | sed -e 's/%/%25/g' | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/%0A/g')
+          echo "::error title=electron-builder::${msg}"
 
       - name: Guardar instaladores
         uses: actions/upload-artifact@v4
