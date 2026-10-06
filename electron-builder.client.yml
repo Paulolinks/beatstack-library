@@ -31,15 +31,13 @@ win:
 mac:
   category: public.app-category.music
   artifactName: ${productName}-${version}-mac-${arch}.${ext}
-  target:
-    - target: dmg
-      arch:
-        - arm64
-        - x64
-  # Sem certificado Apple: assinatura ad-hoc (o Mac pede "Abrir mesmo assim" na 1ª vez)
-  identity: "-"
+  target: dmg
+  # Sem certificado Apple: pula a assinatura normal e assina ad-hoc no afterSign
+  # (o Mac pede "Abrir mesmo assim" na 1ª vez)
+  identity: null
   hardenedRuntime: false
   gatekeeperAssess: false
+afterSign: scripts/mac-adhoc-sign.cjs
 dmg:
   title: ${productName} ${version}
 nsis:

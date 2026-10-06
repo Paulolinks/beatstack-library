@@ -28,7 +28,9 @@ jobs:
       - name: Gerar .dmg (Apple Silicon + Intel)
         run: |
           set -o pipefail
-          npx electron-builder --mac --config electron-builder.client.yml --publish never 2>&1 | tee build.log
+          # Uma arquitetura por vez: os dois .dmg montam um volume com o mesmo nome
+          npx electron-builder --mac --arm64 --config electron-builder.client.yml --publish never 2>&1 | tee build.log
+          npx electron-builder --mac --x64 --config electron-builder.client.yml --publish never 2>&1 | tee -a build.log
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
