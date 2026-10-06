@@ -15,7 +15,7 @@ type PackAdminEditorProps = {
   className?: string;
 } & (
   | { mode: "button"; onOpen: () => void }
-  | { mode: "panel"; onClose: () => void }
+  | { mode: "panel"; onClose: (updatedCoverPath?: string) => void }
 );
 
 export function PackAdminEditor(props: PackAdminEditorProps) {
@@ -70,6 +70,8 @@ export function PackAdminEditor(props: PackAdminEditorProps) {
         if (!res.ok) throw new Error(data.error ?? "Falha ao salvar pack");
       }
 
+      let updatedCoverPath: string | undefined;
+
       if (coverFile) {
         const formData = new FormData();
         formData.append("file", coverFile);
@@ -77,11 +79,12 @@ export function PackAdminEditor(props: PackAdminEditorProps) {
           method: "POST",
           body: formData,
         });
-        const data = (await res.json()) as { error?: string };
+        const data = (await res.json()) as { error?: string; pack?: { coverPath?: string | null } };
         if (!res.ok) throw new Error(data.error ?? "Falha ao enviar capa");
+        updatedCoverPath = data.pack?.coverPath ?? `${Date.now()}`;
       }
 
-      onClose?.();
+      onClose?.(updatedCoverPath);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar");
@@ -104,7 +107,7 @@ export function PackAdminEditor(props: PackAdminEditorProps) {
         </p>
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => onClose?.()}
           className="rounded p-1 text-zinc-500 hover:bg-white/10 hover:text-zinc-300"
           title="Fechar"
         >

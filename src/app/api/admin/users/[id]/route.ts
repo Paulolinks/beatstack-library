@@ -15,7 +15,7 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  let body: { approved?: boolean; role?: string; name?: string; password?: string };
+  let body: { approved?: boolean; managerLicensed?: boolean; role?: string; name?: string; password?: string };
   try {
     body = await request.json();
   } catch {
@@ -32,12 +32,21 @@ export async function PATCH(
 
   const data: {
     approved?: boolean;
+    managerLicensed?: boolean;
     role?: string;
     name?: string | null;
     passwordHash?: string;
+    activeSessionId?: string | null;
+    activeManagerSessionId?: string | null;
   } = {};
 
   if (body.approved !== undefined) data.approved = body.approved;
+  if (body.managerLicensed !== undefined) {
+    data.managerLicensed = body.managerLicensed;
+    if (!body.managerLicensed) {
+      data.activeManagerSessionId = null;
+    }
+  }
   if (body.role !== undefined) data.role = assignableRole(existing.email, body.role);
   if (body.name !== undefined) data.name = body.name.trim() || null;
   if (body.password) {
@@ -55,6 +64,7 @@ export async function PATCH(
       name: true,
       role: true,
       approved: true,
+      managerLicensed: true,
       createdAt: true,
     },
   });

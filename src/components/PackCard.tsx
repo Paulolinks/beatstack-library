@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Music2, SlidersHorizontal } from "lucide-react";
+import { Cloud, HardDrive, Music2, SlidersHorizontal } from "lucide-react";
 import { PresetKindBadges } from "@/components/PresetKindBadges";
 
 export interface PackCardData {
@@ -20,9 +20,17 @@ export interface PackCardData {
 export function PackCard({
   pack,
   tags = [],
+  onVps,
+  showSync = false,
+  queueRunning = false,
+  onSyncDone: _onSyncDone,
 }: {
   pack: PackCardData;
   tags?: string[];
+  onVps?: boolean;
+  showSync?: boolean;
+  queueRunning?: boolean;
+  onSyncDone?: () => void;
 }) {
   const coverUrl = pack.coverPath ? `/api/covers/${pack.id}` : null;
   const presetKinds = pack.presetKinds ?? [];
@@ -49,6 +57,21 @@ export function PackCard({
         {presetKinds.length > 0 && (
           <div className="absolute bottom-2 left-2 right-2">
             <PresetKindBadges kinds={presetKinds} />
+          </div>
+        )}
+        {showSync && onVps !== undefined && (
+          <div className="absolute left-2 top-2">
+            {onVps ? (
+              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow">
+                <Cloud className="h-3 w-3" />
+                Nuvem
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-semibold text-black shadow">
+                <HardDrive className="h-3 w-3" />
+                Local
+              </span>
+            )}
           </div>
         )}
       </div>

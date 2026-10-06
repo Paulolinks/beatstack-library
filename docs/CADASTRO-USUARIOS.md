@@ -44,6 +44,7 @@ Authorization: Bearer SEU_SEGREDO_AQUI
 | `password` | Não | Se omitir, o VPS gera uma senha aleatória e devolve na resposta |
 | `name` | Não | Nome exibido no admin |
 | `approved` | Não | Padrão `true` — libera login imediatamente |
+| `managerLicensed` | Não | Se `true`, ativa licença do **BeatStack Manager** — ver [CADASTRO-MANAGER.md](./CADASTRO-MANAGER.md) |
 | `source` | Não | Só referência (ex.: `stripe`, `hotmart`) — não é salvo ainda |
 
 **Resposta de sucesso (201 implícito 200):**

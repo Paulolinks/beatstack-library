@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth/get-session";
+import { isManagerMode } from "@/lib/app-mode";
+import { removeUnsupportedAiffFromPack } from "@/lib/import/remove-unsupported-aiff";
 import { PackSampleList } from "@/components/PackSampleList";
 import { PackPageHeader } from "@/components/PackPageHeader";
 import { PresetFolderList } from "@/components/PresetFolderList";
@@ -14,7 +16,8 @@ export default async function PackDetailPage({
 }) {
   const { slug } = await params;
   const session = await getSession();
-  const pack = await prisma.pack.findUnique({
+
+  let pack = await prisma.pack.findUnique({
     where: { slug },
     include: {
       samples: {
@@ -29,6 +32,30 @@ export default async function PackDetailPage({
   });
 
   if (!pack) notFound();
+
+  // Ao abrir o pack (Manager ou admin no VPS): remove .aif/.aiff, que o player não toca
+  if (isManagerMode() || session?.role === "admin") {
+    const cleanup = await removeUnsupportedAiffFromPack({
+      packId: pack.id,
+      slug: pack.slug,
+    });
+    if (cleanup.deletedFiles > 0 || cleanup.deletedSamples > 0) {
+      pack = await prisma.pack.findUnique({
+        where: { slug },
+        include: {
+          samples: {
+            orderBy: [{ type: "asc" }, { displayName: "asc" }],
+            include: { meta: true },
+          },
+          assets: {
+            orderBy: { name: "asc" },
+            include: { meta: true },
+          },
+        },
+      });
+      if (!pack) notFound();
+    }
+  }
 
   const types = [...new Set(pack.samples.map((s) => s.type).filter(Boolean))] as string[];
 

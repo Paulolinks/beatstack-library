@@ -80,7 +80,7 @@ export function isSupportedArchiveFile(file: File): boolean {
 }
 
 export function countAudioInFolder(entries: FolderFileEntry[]): number {
-  const audioExt = [".wav", ".aiff", ".aif", ".flac", ".mp3", ".ogg"];
+  const audioExt = [".wav", ".flac", ".mp3", ".ogg", ".m4a"];
   return entries.filter((e) =>
     audioExt.some((ext) => e.path.toLowerCase().endsWith(ext)),
   ).length;

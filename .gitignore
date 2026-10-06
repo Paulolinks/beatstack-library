@@ -47,3 +47,7 @@ next-env.d.ts
 
 # electron build output
 /dist-electron/
+/dist-build-*/
+/dist-electron-manager*/
+/dist-electron-*/
+/scripts/manager-template.db

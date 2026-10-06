@@ -30,7 +30,10 @@ export function useSamplePeaks(
   sampleId: string,
   storedPeaksJson: string | null,
   enabled = false,
+  options?: { audioUrl?: string; persist?: boolean },
 ) {
+  const audioUrl = options?.audioUrl ?? `/api/audio/${sampleId}`;
+  const persist = options?.persist ?? true;
   const [peaks, setPeaks] = useState<number[]>(() =>
     parseWaveformPeaks(storedPeaksJson),
   );
@@ -48,14 +51,16 @@ export function useSamplePeaks(
     void enqueueDecode(async () => {
       if (cancelled) return;
       try {
-        const realPeaks = await extractPeaksFromAudioUrl(`/api/audio/${sampleId}`);
+        const realPeaks = await extractPeaksFromAudioUrl(audioUrl);
         if (cancelled) return;
         setPeaks(realPeaks);
-        await fetch(`/api/samples/${sampleId}/waveform`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ peaks: realPeaks }),
-        });
+        if (persist) {
+          await fetch(`/api/samples/${sampleId}/waveform`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ peaks: realPeaks }),
+          });
+        }
       } catch {
         if (!cancelled && stored.length > 0) setPeaks(stored);
       }
@@ -64,7 +69,7 @@ export function useSamplePeaks(
     return () => {
       cancelled = true;
     };
-  }, [sampleId, storedPeaksJson, enabled]);
+  }, [sampleId, storedPeaksJson, enabled, audioUrl, persist]);
 
   return { peaks };
 }

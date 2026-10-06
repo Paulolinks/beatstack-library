@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRef } from "react";
+import { useRef, useMemo, useState } from "react";
 import { Heart, Pause, Play, Download, Check, Loader2 } from "lucide-react";
 import { useAudioPlayer } from "@/context/AudioPlayerContext";
 import { useSamplePeaks, useRowVisible } from "@/hooks/useSamplePeaks";
@@ -13,7 +13,12 @@ import { cn, formatDuration, formatKey, parseTagsJson, parseWaveformPeaks } from
 import { resolveSampleBpm, resolveSampleKey } from "@/lib/sample-metadata";
 import { isLikelyFakePeaks } from "@/lib/audio/waveform-client";
 import { downloadSampleFile, usesCopyFlow, type CopyFolder } from "@/lib/download-sample-client";
-import { useMemo, useState } from "react";
+import { isManagerModeClient, isLibraryDesktopClient } from "@/lib/app-mode-client";
+import {
+  copySampleToActiveFavoriteFolder,
+  removeSampleFromActiveFavoriteFolder,
+} from "@/lib/desktop/favorite-folders-client";
+import { useI18n } from "@/lib/i18n/context";
 
 export interface SampleListItem {
   id: string;
@@ -41,6 +46,10 @@ export interface SampleListItem {
     favorite: boolean;
     downloadedAt?: string | Date | null;
   } | null;
+  /** Samples da aba Nuvem (VPS) tocam por proxy e não têm meta local. */
+  source?: "cloud";
+  audioUrl?: string;
+  coverUrl?: string | null;
 }
 
 export function SampleRow({
@@ -54,6 +63,7 @@ export function SampleRow({
   onTagClick?: (tag: string) => void;
   copyFolder?: CopyFolder;
 }) {
+  const { t } = useI18n();
   const rowRef = useRef<HTMLTableRowElement>(null);
   const { currentSample, isPlaying, progress, toggle, seek } = useAudioPlayer();
   const isCurrent = currentSample?.id === sample.id;
@@ -77,6 +87,7 @@ export function SampleRow({
   );
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [favoriteCopied, setFavoriteCopied] = useState(false);
   const isDownloaded = Boolean(sample.meta?.downloadedAt);
 
   const tags = buildTags(sample);
@@ -117,9 +128,43 @@ export function SampleRow({
     }
   }
 
+  async function handleFavoriteClick() {
+    const next = !favorite;
+    const result = await updateMeta({ favorite: next });
+    if (!result.ok) {
+      window.alert(result.error ?? t("favoriteFailed"));
+      return;
+    }
+
+    if (isLibraryDesktopClient()) {
+      if (next) {
+        const copy = await copySampleToActiveFavoriteFolder(
+          sample.id,
+          sample.fileName,
+          sample.pack.slug,
+        );
+        if (!copy.ok) {
+          window.alert(copy.error ?? t("favoriteFailed"));
+          return;
+        }
+        setFavoriteCopied(true);
+        setTimeout(() => setFavoriteCopied(false), 2500);
+      } else {
+        await removeSampleFromActiveFavoriteFolder(sample.pack.slug, sample.fileName, sample.id);
+      }
+      return;
+    }
+
+    if (isManagerModeClient() && next && result.copiedTo) {
+      setFavoriteCopied(true);
+      setTimeout(() => setFavoriteCopied(false), 2500);
+    }
+  }
+
+  const usesLocalFavoriteCopy = isManagerModeClient() || isLibraryDesktopClient();
   const actionTitle = usesCopyFlow()
-    ? "Copia o sample — Ctrl+V na timeline ou browser de arquivos do DAW"
-    : "Baixar sample";
+    ? t("copySampleHint")
+    : t("downloadSample");
 
   return (
     <tr
@@ -226,7 +271,7 @@ export function SampleRow({
             ) : copied ? (
               <>
                 <Check className="h-4 w-4 shrink-0" />
-                <span className="text-[10px] font-semibold leading-none">Copiado</span>
+                <span className="text-[10px] font-semibold leading-none">{t("copiedLabel")}</span>
               </>
             ) : isDownloaded ? (
               <Check className="h-5 w-5" />
@@ -236,14 +281,20 @@ export function SampleRow({
           </button>
           <button
             type="button"
-            title="Favorito"
-            onClick={() => updateMeta({ favorite: !favorite })}
+            title={
+              usesLocalFavoriteCopy
+                ? favoriteCopied
+                  ? t("favoriteCopiedToFolder")
+                  : t("favoriteCopiesToPc")
+                : t("favorite")
+            }
+            onClick={() => void handleFavoriteClick()}
             className={cn(
               "rounded p-1.5 transition",
-              favorite ? "text-rose-400" : "text-zinc-500 hover:text-rose-400",
+              favorite || favoriteCopied ? "text-rose-400" : "text-zinc-500 hover:text-rose-400",
             )}
           >
-            <Heart className={cn("h-4 w-4", favorite && "fill-current")} />
+            <Heart className={cn("h-4 w-4", (favorite || favoriteCopied) && "fill-current")} />
           </button>
           <StarRating value={rating} onChange={(r) => updateMeta({ rating: r })} />
         </div>

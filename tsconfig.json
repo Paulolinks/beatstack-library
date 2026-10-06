@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "sites", "dist-build-manager-release", "dist-build-fresh-211", "dist-build-fresh-212", "dist-build-fresh-213", "dist-build-fresh-*", "dist-electron-manager-v203", "dist-electron", "dist-electron-manager-v212"]
 }

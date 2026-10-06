@@ -33,8 +33,10 @@ export function SyncPacksFolderButton({
     const ok = window.confirm(
       "Atualizar packs a partir da pasta de armazenamento?\n\n" +
         "• Adiciona pastas novas que ainda não estão no app\n" +
-        "• Remove do app packs cuja pasta sumiu do disco\n\n" +
-        "Isso não apaga arquivos do HD — só sincroniza o índice.",
+        "• Remove do app packs cuja pasta sumiu do disco\n" +
+        "• Arquivos .aif/.aiff são ignorados na importação\n\n" +
+        "Isso não apaga arquivos do HD — só sincroniza o índice.\n" +
+        "(Ao abrir um pack, .aif restantes são apagados automaticamente.)",
     );
     if (!ok) return;
 
@@ -89,7 +91,8 @@ export function SyncPacksFolderButton({
       <p className="mb-3 text-xs text-zinc-500">
         Depois de copiar ou extrair packs em <code className="text-zinc-400">packs/</code> (pendrive,
         outro PC, WinRAR…), clique aqui. O Manager lê as pastas, adiciona as novas e remove do
-        índice o que não existe mais no disco.
+        índice o que não existe mais no disco. Arquivos <code className="text-zinc-400">.aif</code>{" "}
+        são ignorados; ao abrir um pack, qualquer .aif restante é apagado automaticamente.
       </p>
       <button
         type="button"

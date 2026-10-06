@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Search, Upload } from "lucide-react";
+import { CloudUpload, Search, Settings2, Upload } from "lucide-react";
 import { PackCard, type PackCardData } from "@/components/PackCard";
+import { usePackSyncStatus } from "@/components/PackSyncStatus";
+import { useI18n } from "@/lib/i18n/context";
+import { isManagerModeClient } from "@/lib/app-mode-client";
 import { parseTagsJson } from "@/lib/utils";
 
 const GENRE_FILTERS = [
@@ -34,8 +37,11 @@ export function PackLibrary({
   packs: (PackCardData & { tags: string })[];
   isAdmin?: boolean;
 }) {
+  const { t } = useI18n();
+  const isManager = isManagerModeClient();
   const [query, setQuery] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
+  const { syncEnabled, onVpsBySlug, queueRunning, refresh } = usePackSyncStatus(isAdmin && isManager);
 
   const availableGenres = useMemo(() => {
     const counts = new Map<string, number>();
@@ -70,23 +76,43 @@ export function PackLibrary({
     });
   }, [packs, query, genreFilter]);
 
+  const packCountLabel = t("packCount")
+    .replace("{shown}", String(filtered.length))
+    .replace("{total}", String(packs.length));
+
   return (
     <div>
       <div className="mb-8 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Sua biblioteca</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            {filtered.length} de {packs.length} pack{packs.length !== 1 ? "s" : ""}
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("yourLibrary")}</h1>
+          <p className="mt-1 text-sm text-zinc-500">{packCountLabel}</p>
         </div>
         {isAdmin && (
-          <Link
-            href="/admin/import"
-            className="flex shrink-0 items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-500"
-          >
-            <Upload className="h-4 w-4" />
-            Importar pack
-          </Link>
+          <div className="flex shrink-0 gap-2">
+            <Link
+              href="/admin/packs"
+              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-zinc-300 transition hover:bg-white/10"
+            >
+              <Settings2 className="h-4 w-4" />
+              {t("managePacks")}
+            </Link>
+            {isManager && syncEnabled && (
+              <Link
+                href="/admin/sync-vps"
+                className="flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-300 transition hover:bg-violet-500/20"
+              >
+                <CloudUpload className="h-4 w-4" />
+                {t("syncVps")}
+              </Link>
+            )}
+            <Link
+              href="/admin/import"
+              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-500"
+            >
+              <Upload className="h-4 w-4" />
+              {t("importPack")}
+            </Link>
+          </div>
         )}
       </div>
 
@@ -98,7 +124,7 @@ export function PackLibrary({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar pack, produtor ou gênero..."
+              placeholder={t("searchPackPlaceholder")}
               className="w-full rounded-lg border border-white/10 bg-[#141418] py-2.5 pl-10 pr-4 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-sky-500/50 focus:outline-none"
             />
           </div>
@@ -106,7 +132,7 @@ export function PackLibrary({
           {availableGenres.length > 0 && (
             <div className="mb-6 flex flex-wrap items-center gap-2">
               <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-600">
-                Gênero
+                {t("genre")}
               </span>
               <button
                 type="button"
@@ -117,7 +143,7 @@ export function PackLibrary({
                     : "bg-white/10 text-zinc-400 hover:bg-white/15"
                 }`}
               >
-                Todos
+                {t("all")}
               </button>
               {availableGenres.map(({ name, count }) => (
                 <button
@@ -141,30 +167,36 @@ export function PackLibrary({
 
       {packs.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-24 text-center">
-          <p className="text-lg text-zinc-400">Nenhum pack importado ainda</p>
-          <p className="mt-2 max-w-md text-sm text-zinc-600">
-            Faça upload de um ZIP com seu sample pack para começar.
-          </p>
+          <p className="text-lg text-zinc-400">{t("noPacksYet")}</p>
+          <p className="mt-2 max-w-md text-sm text-zinc-600">{t("noPacksHint")}</p>
           {isAdmin && (
             <Link
               href="/admin/import"
               className="mt-6 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
             >
-              Importar primeiro pack
+              {t("importFirstPack")}
             </Link>
           )}
           {!isAdmin && (
-            <p className="mt-6 text-sm text-zinc-600">Aguarde o administrador importar novos packs.</p>
+            <p className="mt-6 text-sm text-zinc-600">{t("waitingAdminImport")}</p>
           )}
         </div>
       ) : filtered.length === 0 ? (
         <p className="rounded-lg border border-white/10 p-8 text-center text-sm text-zinc-500">
-          Nenhum pack encontrado com esses filtros.
+          {t("noPacksFiltered")}
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {filtered.map((pack) => (
-            <PackCard key={pack.id} pack={pack} tags={getPackTags(pack)} />
+            <PackCard
+              key={pack.id}
+              pack={pack}
+              tags={getPackTags(pack)}
+              showSync={syncEnabled}
+              onVps={syncEnabled ? onVpsBySlug[pack.slug] : undefined}
+              queueRunning={queueRunning}
+              onSyncDone={() => void refresh()}
+            />
           ))}
         </div>
       )}

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/get-session";
 
+import { deletePack } from "@/lib/import/service";
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -58,4 +60,38 @@ export async function PATCH(
   });
 
   return NextResponse.json({ pack: updated });
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const pack = await prisma.pack.findUnique({ where: { id }, select: { id: true, name: true } });
+  if (!pack) {
+    return NextResponse.json({ error: "Pack não encontrado" }, { status: 404 });
+  }
+
+  try {
+    const result = await deletePack(id);
+    return NextResponse.json({
+      success: true,
+      name: pack.name,
+      fileErrors: result.fileErrors,
+    });
+  } catch (err) {
+    console.error("[DELETE /api/packs]", id, err);
+    return NextResponse.json(
+      {
+        error: `Falha ao excluir "${pack.name}": ${err instanceof Error ? err.message : String(err)}`,
+      },
+      { status: 500 },
+    );
+  }
 }

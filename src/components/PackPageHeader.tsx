@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowLeft, Music2 } from "lucide-react";
 import { PackAdminEditor } from "@/components/PackAdminEditor";
+import { PackDeleteButton } from "@/components/PackDeleteButton";
+import { useI18n } from "@/lib/i18n/context";
 
 export function PackPageHeader({
   pack,
@@ -24,8 +26,17 @@ export function PackPageHeader({
   types: string[];
   isAdmin?: boolean;
 }) {
+  const { t } = useI18n();
   const [editOpen, setEditOpen] = useState(false);
-  const coverUrl = pack.coverPath ? `/api/covers/${pack.id}` : null;
+  const [coverVersion, setCoverVersion] = useState(pack.coverPath ?? "");
+  const coverUrl = coverVersion ? `/api/covers/${pack.id}?v=${encodeURIComponent(coverVersion)}` : null;
+
+  function handleEditorClose(updatedCoverPath?: string) {
+    setEditOpen(false);
+    if (updatedCoverPath !== undefined) {
+      setCoverVersion(updatedCoverPath || `${Date.now()}`);
+    }
+  }
 
   return (
     <>
@@ -34,7 +45,7 @@ export function PackPageHeader({
         className="mb-6 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300"
       >
         <ArrowLeft className="h-4 w-4" />
-        Voltar aos packs
+        {t("backToPacks")}
       </Link>
 
       <div className="mb-8 flex gap-6">
@@ -59,16 +70,23 @@ export function PackPageHeader({
               </p>
             </div>
             {isAdmin && !editOpen && (
-              <PackAdminEditor
-                packId={pack.id}
-                initialName={pack.name}
-                initialProducer={pack.producer}
-                initialGenre={pack.genre}
-                hasCover={Boolean(pack.coverPath)}
-                mode="button"
-                onOpen={() => setEditOpen(true)}
-                className="shrink-0"
-              />
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <PackAdminEditor
+                  packId={pack.id}
+                  initialName={pack.name}
+                  initialProducer={pack.producer}
+                  initialGenre={pack.genre}
+                  hasCover={Boolean(coverVersion)}
+                  mode="button"
+                  onOpen={() => setEditOpen(true)}
+                />
+                <PackDeleteButton
+                  packId={pack.id}
+                  packName={pack.name}
+                  redirectTo="/"
+                  size="md"
+                />
+              </div>
             )}
           </div>
           {types.length > 0 && (
@@ -94,9 +112,9 @@ export function PackPageHeader({
             initialName={pack.name}
             initialProducer={pack.producer}
             initialGenre={pack.genre}
-            hasCover={Boolean(pack.coverPath)}
+            hasCover={Boolean(coverVersion)}
             mode="panel"
-            onClose={() => setEditOpen(false)}
+            onClose={handleEditorClose}
           />
         </div>
       )}

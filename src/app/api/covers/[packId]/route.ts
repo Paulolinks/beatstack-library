@@ -26,7 +26,7 @@ export async function GET(
   return new NextResponse(buffer, {
     headers: {
       "Content-Type": mime,
-      "Cache-Control": "public, max-age=86400",
+      "Cache-Control": "private, max-age=0, must-revalidate",
     },
   });
 }

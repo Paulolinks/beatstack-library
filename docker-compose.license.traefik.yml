@@ -1,0 +1,44 @@
+# BeatStack Manager — servidor de licenças (separado do Library)
+# Uso: docker compose -p beatstack-license -f docker-compose.license.traefik.yml up -d --build
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        BEATSTACK_APP_MODE: license
+        NEXT_PUBLIC_BEATSTACK_APP_MODE: license
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      BEATSTACK_APP_MODE: license
+      NEXT_PUBLIC_BEATSTACK_APP_MODE: license
+      DATABASE_URL: "file:/app/data/license.db"
+    volumes:
+      - beatstack_license_db:/app/data
+    networks:
+      - license_internal
+      - traefik_public
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=root_default
+      - traefik.http.routers.beatstack-license.rule=Host(`license.paulolinks.com`) || Host(`license.srv983653.hstgr.cloud`)
+      - traefik.http.routers.beatstack-license.entrypoints=web,websecure
+      - traefik.http.routers.beatstack-license.tls=true
+      - traefik.http.routers.beatstack-license.tls.certresolver=mytlschallenge
+      - traefik.http.services.beatstack-license.loadbalancer.server.port=3000
+
+networks:
+  license_internal:
+    name: beatstack_license_internal
+  traefik_public:
+    external: true
+    name: root_default
+
+volumes:
+  beatstack_license_db:
+    name: beatstack_license_db

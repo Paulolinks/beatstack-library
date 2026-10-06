@@ -38,14 +38,25 @@ export async function POST(
     return NextResponse.json({ error: "Arquivo de capa obrigatório" }, { status: 400 });
   }
 
-  if (!ALLOWED.has(file.type)) {
+  const extFromName = path.extname(file.name).toLowerCase();
+  const mimeByExt: Record<string, string> = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+  };
+  const resolvedMime = ALLOWED.has(file.type)
+    ? file.type
+    : mimeByExt[extFromName];
+
+  if (!resolvedMime) {
     return NextResponse.json(
       { error: "Use JPG, PNG ou WebP para a capa" },
       { status: 400 },
     );
   }
 
-  const ext = EXT_BY_MIME[file.type] ?? (path.extname(file.name).toLowerCase() || ".jpg");
+  const ext = EXT_BY_MIME[resolvedMime] ?? (extFromName || ".jpg");
   const packDir = getPackDir(pack.slug);
   if (!fs.existsSync(packDir)) {
     fs.mkdirSync(packDir, { recursive: true });

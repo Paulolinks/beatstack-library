@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#050508"/>
+      <stop offset="50%" style="stop-color:#0a0a12"/>
+      <stop offset="100%" style="stop-color:#050508"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#38bdf8"/>
+      <stop offset="100%" style="stop-color:#8b5cf6"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="20%" cy="20%" r="50%">
+      <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:0.25"/>
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="80%" cy="30%" r="40%">
+      <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:0.2"/>
+      <stop offset="100%" style="stop-color:#38bdf8;stop-opacity:0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow1)"/>
+  <rect width="1200" height="630" fill="url(#glow2)"/>
+  <!-- Waveform bars -->
+  <g fill="url(#accent)" opacity="0.6">
+    <rect x="80" y="480" width="8" height="40" rx="4"/>
+    <rect x="96" y="460" width="8" height="60" rx="4"/>
+    <rect x="112" y="440" width="8" height="80" rx="4"/>
+    <rect x="128" y="420" width="8" height="100" rx="4"/>
+    <rect x="144" y="400" width="8" height="120" rx="4"/>
+    <rect x="160" y="380" width="8" height="140" rx="4"/>
+    <rect x="176" y="400" width="8" height="120" rx="4"/>
+    <rect x="192" y="420" width="8" height="100" rx="4"/>
+    <rect x="208" y="440" width="8" height="80" rx="4"/>
+    <rect x="224" y="460" width="8" height="60" rx="4"/>
+    <rect x="240" y="480" width="8" height="40" rx="4"/>
+  </g>
+  <!-- Logo circle -->
+  <circle cx="120" cy="120" r="36" fill="#38bdf8" fill-opacity="0.15"/>
+  <circle cx="120" cy="120" r="20" fill="none" stroke="#38bdf8" stroke-width="3"/>
+  <circle cx="120" cy="120" r="8" fill="#38bdf8"/>
+  <!-- Title -->
+  <text x="180" y="110" font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="#71717a">BeatStack Manager</text>
+  <text x="120" y="220" font-family="system-ui, sans-serif" font-size="52" font-weight="800" fill="#fafafa">Your Personal Splice</text>
+  <text x="120" y="290" font-family="system-ui, sans-serif" font-size="52" font-weight="800" fill="url(#accent)">for Your Own Samples</text>
+  <text x="120" y="360" font-family="system-ui, sans-serif" font-size="24" fill="#a1a1aa">Organize � Search � Preview � Produce faster</text>
+  <!-- Price badge -->
+  <rect x="120" y="400" width="280" height="56" rx="28" fill="#38bdf8" fill-opacity="0.15" stroke="#38bdf8" stroke-width="1"/>
+  <text x="260" y="436" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#38bdf8" text-anchor="middle">Launch Offer  $47 One-Time</text>
+  <!-- Mock UI frame -->
+  <rect x="620" y="100" width="520" height="430" rx="16" fill="#141418" stroke="#ffffff" stroke-opacity="0.1"/>
+  <rect x="620" y="100" width="520" height="40" rx="16" fill="#0d0d0f"/>
+  <circle cx="648" cy="120" r="6" fill="#f43f5e" fill-opacity="0.8"/>
+  <circle cx="668" cy="120" r="6" fill="#f59e0b" fill-opacity="0.8"/>
+  <circle cx="688" cy="120" r="6" fill="#10b981" fill-opacity="0.8"/>
+  <rect x="640" y="160" width="480" height="36" rx="8" fill="#0d0d0f" stroke="#ffffff" stroke-opacity="0.08"/>
+  <rect x="640" y="210" width="110" height="110" rx="8" fill="#1a1a20"/>
+  <rect x="760" y="210" width="110" height="110" rx="8" fill="#1a1a20"/>
+  <rect x="880" y="210" width="110" height="110" rx="8" fill="#1a1a20"/>
+  <rect x="1000" y="210" width="110" height="110" rx="8" fill="#1a1a20"/>
+  <rect x="640" y="340" width="480" height="32" rx="6" fill="#0d0d0f"/>
+  <rect x="640" y="382" width="480" height="32" rx="6" fill="#0d0d0f"/>
+  <rect x="640" y="424" width="480" height="32" rx="6" fill="#0d0d0f"/>
+  <circle cx="660" cy="356" r="8" fill="#38bdf8" fill-opacity="0.4"/>
+  <circle cx="660" cy="398" r="8" fill="#38bdf8" fill-opacity="0.4"/>
+  <circle cx="660" cy="440" r="8" fill="#38bdf8" fill-opacity="0.4"/>
+</svg>

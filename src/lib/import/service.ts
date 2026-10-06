@@ -4,9 +4,11 @@ import slugify from "slugify";
 import { prisma } from "@/lib/prisma";
 import {
   ensureStorageDirs,
+  fromRelativeStoragePath,
   getInboxDir,
   getPackDir,
   getPacksDir,
+  getStorageRoot,
   toRelativeStoragePath,
 } from "@/lib/storage";
 import {
@@ -79,7 +81,7 @@ function materializeSourceDirectory(sourceDirectory: string, packDir: string): v
     return;
   }
 
-  if (isPathInside(packsRoot, sourceDir)) {
+  if (isPathInside(packsRoot, sourceDir) || isPathInside(getInboxDir(), sourceDir)) {
     if (fs.existsSync(packDir)) {
       fs.rmSync(packDir, { recursive: true, force: true });
     }
@@ -94,7 +96,7 @@ function materializeSourceDirectory(sourceDirectory: string, packDir: string): v
 }
 
 async function uniqueSlug(base: string): Promise<string> {
-  let slug = slugify(base, { lower: true, strict: true }) || "pack";
+  const slug = slugify(base, { lower: true, strict: true }) || "pack";
   let candidate = slug;
   let i = 1;
   while (await prisma.pack.findUnique({ where: { slug: candidate } })) {
@@ -320,14 +322,61 @@ export async function importPackFromArchive(
   }
 }
 
-export async function deletePack(packId: string): Promise<void> {
+function removePathQuietly(target: string): string | null {
+  try {
+    if (fs.existsSync(target)) {
+      fs.rmSync(target, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+    }
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
+}
+
+export type DeletePackResult = {
+  deleted: boolean;
+  name?: string;
+  fileErrors: string[];
+};
+
+/**
+ * Remove o pack do banco primeiro (some da biblioteca na hora) e depois apaga
+ * pasta, arquivo de origem e restos de upload no disco.
+ */
+export async function deletePack(packId: string): Promise<DeletePackResult> {
   const pack = await prisma.pack.findUnique({ where: { id: packId } });
-  if (!pack) return;
+  if (!pack) return { deleted: false, fileErrors: [] };
 
   const packDir = getPackDir(pack.slug);
-  if (fs.existsSync(packDir)) {
-    fs.rmSync(packDir, { recursive: true, force: true });
-  }
+  const sourceArchive = pack.sourceArchivePath
+    ? fromRelativeStoragePath(pack.sourceArchivePath)
+    : null;
+  const jobs = await prisma.importJob.findMany({
+    where: { packId },
+    select: { id: true, inboxPath: true },
+  });
 
   await prisma.pack.delete({ where: { id: packId } });
+
+  const fileErrors: string[] = [];
+  const targets = [packDir];
+  if (sourceArchive && isPathInside(getStorageRoot(), sourceArchive)) {
+    targets.push(sourceArchive);
+  }
+  for (const job of jobs) {
+    targets.push(path.join(getInboxDir(), `extract-${job.id}`));
+    if (job.inboxPath && isPathInside(getInboxDir(), job.inboxPath)) {
+      targets.push(job.inboxPath);
+    }
+  }
+
+  for (const target of targets) {
+    const error = removePathQuietly(target);
+    if (error) {
+      console.error(`[deletePack] ${pack.slug}: falha ao apagar ${target}: ${error}`);
+      fileErrors.push(`${path.basename(target)}: ${error}`);
+    }
+  }
+
+  return { deleted: true, name: pack.name, fileErrors };
 }

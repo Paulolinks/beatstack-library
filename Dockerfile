@@ -6,6 +6,10 @@ RUN npm ci
 
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
+ARG BEATSTACK_APP_MODE=library
+ARG NEXT_PUBLIC_BEATSTACK_APP_MODE=library
+ENV BEATSTACK_APP_MODE=$BEATSTACK_APP_MODE
+ENV NEXT_PUBLIC_BEATSTACK_APP_MODE=$NEXT_PUBLIC_BEATSTACK_APP_MODE
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -36,4 +40,4 @@ RUN mkdir -p storage prisma
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --skip-generate && exec node server.js"]
+CMD ["sh", "-c", "node ./node_modules/prisma/build/index.js db push --schema=./prisma/schema.prisma --skip-generate && exec node server.js"]

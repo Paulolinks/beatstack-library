@@ -8,11 +8,14 @@ export function SampleTable({
   onMetaChange,
   onTagClick,
   copyFolder = "downloads",
+  metaScopeKey,
 }: {
   samples: SampleListItem[];
   onMetaChange?: () => void;
   onTagClick?: (tag: string) => void;
   copyFolder?: CopyFolder;
+  /** Troca de pasta de favoritos — força reset do coração por sample. */
+  metaScopeKey?: string;
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-white/10 bg-[#101014]">
@@ -49,7 +52,7 @@ export function SampleTable({
           ) : (
             samples.map((sample) => (
               <SampleRow
-                key={sample.id}
+                key={metaScopeKey ? `${sample.id}-${metaScopeKey}` : sample.id}
                 sample={sample}
                 onMetaChange={onMetaChange}
                 onTagClick={onTagClick}

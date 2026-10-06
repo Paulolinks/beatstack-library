@@ -30,11 +30,19 @@ async function copySampleOnLocalServer(
     const res = await fetch(`/api/samples/${sampleId}/copy`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({ folder }),
     });
-    const data = (await res.json()) as { path?: string; error?: string; message?: string };
+
+    let data: { path?: string; error?: string; message?: string } = {};
+    try {
+      data = (await res.json()) as typeof data;
+    } catch {
+      return { ok: false, error: res.ok ? "Resposta inválida do servidor" : `Erro ${res.status}` };
+    }
+
     if (!res.ok) {
-      return { ok: false, error: data.error ?? "Falha ao copiar sample" };
+      return { ok: false, error: data.error ?? data.message ?? "Falha ao copiar sample" };
     }
 
     let clipboardOk = false;
@@ -43,8 +51,9 @@ async function copySampleOnLocalServer(
     }
 
     return { ok: true, path: data.path, clipboardOk };
-  } catch {
-    return { ok: false, error: "Erro de rede ao copiar sample" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro de rede";
+    return { ok: false, error: `Erro de rede ao copiar sample (${message})` };
   }
 }
 

@@ -15,15 +15,21 @@ model User {
   name            String?
   role            String   @default("user")
   approved        Boolean  @default(false)
-  activeSessionId String?
-  lastLoginAt     DateTime?
-  lastLoginDevice String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  managerLicensed Boolean  @default(false)
+  licensePurchasedAt DateTime?
+  licenseActivatedAt DateTime?
+  activeSessionId        String?
+  activeManagerSessionId String?
+  lastLoginAt            DateTime?
+  lastLoginDevice        String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@index([approved])
+  @@index([managerLicensed])
   @@index([role])
   @@index([activeSessionId])
+  @@index([activeManagerSessionId])
   @@map("users")
 }
 
@@ -70,9 +76,10 @@ model Sample {
   searchText    String?
   createdAt     DateTime @default(now())
 
-  pack            Pack               @relation(fields: [packId], references: [id], onDelete: Cascade)
+  pack            Pack                 @relation(fields: [packId], references: [id], onDelete: Cascade)
   meta            UserSampleMeta?
   collectionItems CollectionSample[]
+  favoriteEntries SampleFavoriteFolder[]
 
   @@index([packId])
   @@index([type])
@@ -169,4 +176,95 @@ model ImportJob {
 
   @@index([status])
   @@map("import_jobs")
+}
+
+model FavoriteFolder {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  samples SampleFavoriteFolder[]
+
+  @@map("favorite_folders")
+}
+
+model SampleFavoriteFolder {
+  id       String   @id @default(cuid())
+  sampleId String
+  folderId String
+  addedAt  DateTime @default(now())
+
+  sample Sample         @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  folder FavoriteFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@unique([sampleId, folderId])
+  @@index([folderId])
+  @@map("sample_favorite_folders")
+}
+
+model ManagerSetting {
+  id                     String  @id @default("singleton")
+  activeFavoriteFolderId String?
+  preferredLocale        String  @default("en")
+
+  @@map("manager_settings")
+}
+
+model Campaign {
+  id                   String    @id @default(cuid())
+  title                String
+  titleEn              String?
+  body                 String
+  bodyEn               String?
+  type                 String    @default("notice")
+  options              String    @default("[]")
+  allowText            Boolean   @default(false)
+  autoSubmitOnOption   Boolean   @default(true)
+  active               Boolean   @default(true)
+  startsAt             DateTime?
+  endsAt               DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  responses CampaignResponse[]
+
+  @@index([active])
+  @@map("campaigns")
+}
+
+model CampaignResponse {
+  id             String    @id @default(cuid())
+  campaignId     String
+  userEmail      String
+  openedAt       DateTime?
+  respondedAt    DateTime?
+  selectedOption String?
+  textResponse   String?
+  createdAt      DateTime  @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, userEmail])
+  @@index([userEmail])
+  @@map("campaign_responses")
+}
+
+model LegalAcceptance {
+  id             String   @id @default(cuid())
+  userId         String?
+  email          String?
+  termsVersion   String
+  privacyVersion String
+  appVersion     String?
+  os             String?
+  ipAddress      String?
+  source         String   @default("app")
+  acceptedAt     DateTime @default(now())
+
+  @@index([userId])
+  @@index([email])
+  @@index([acceptedAt])
+  @@map("legal_acceptances")
 }

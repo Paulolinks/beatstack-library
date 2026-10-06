@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     password?: string;
     name?: string;
     approved?: boolean;
+    managerLicensed?: boolean;
     source?: string;
   };
   try {
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     password: body.password,
     name: body.name,
     approved: body.approved,
+    managerLicensed: body.managerLicensed,
     source: body.source,
   });
 

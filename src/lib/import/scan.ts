@@ -3,7 +3,9 @@ import path from "path";
 import { parseFile } from "music-metadata";
 import { extractWaveformPeaks } from "@/lib/audio/waveform";
 
-const AUDIO_EXT = new Set([".wav", ".mp3", ".aiff", ".aif", ".flac", ".ogg", ".m4a"]);
+const AUDIO_EXT = new Set([".wav", ".mp3", ".flac", ".ogg", ".m4a"]);
+/** Extensões que o player do Electron/Chrome não toca — não indexamos. */
+const UNSUPPORTED_AUDIO_EXT = new Set([".aiff", ".aif"]);
 
 export interface ScannedAudioFile {
   absolutePath: string;
@@ -15,6 +17,10 @@ export interface ScannedAudioFile {
 
 export function isAudioFile(fileName: string): boolean {
   return AUDIO_EXT.has(path.extname(fileName).toLowerCase());
+}
+
+export function isUnsupportedAudioFile(fileName: string): boolean {
+  return UNSUPPORTED_AUDIO_EXT.has(path.extname(fileName).toLowerCase());
 }
 
 export function scanAudioFiles(rootDir: string): ScannedAudioFile[] {

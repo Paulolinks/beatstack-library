@@ -10,6 +10,7 @@ interface UserRow {
   name: string | null;
   role: string;
   approved: boolean;
+  managerLicensed: boolean;
   createdAt: string;
   lastLoginAt: string | null;
   lastLoginDevice: string | null;
@@ -79,7 +80,11 @@ export default function AdminUsersPage() {
     <div className="mx-auto max-w-3xl">
       <h1 className="mb-2 text-2xl font-semibold tracking-tight">Usuários</h1>
       <p className="mb-8 text-sm text-zinc-500">
-        Somente e-mails cadastrados e aprovados conseguem entrar no app.
+        Acesso à biblioteca online (Library). Licenças do app desktop:{" "}
+        <a href="/admin/manager-licenses" className="text-sky-400 hover:underline">
+          Licenças Manager
+        </a>
+        .
       </p>
 
       <form

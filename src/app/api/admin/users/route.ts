@@ -19,10 +19,14 @@ export async function GET() {
       name: true,
       role: true,
       approved: true,
+      managerLicensed: true,
+      licensePurchasedAt: true,
+      licenseActivatedAt: true,
       createdAt: true,
       lastLoginAt: true,
       lastLoginDevice: true,
       activeSessionId: true,
+      activeManagerSessionId: true,
     },
   });
 
@@ -42,6 +46,7 @@ export async function POST(request: NextRequest) {
     name?: string;
     role?: string;
     approved?: boolean;
+    managerLicensed?: boolean;
   };
   try {
     body = await request.json();
@@ -64,13 +69,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "E-mail já cadastrado" }, { status: 409 });
   }
 
+  const managerLicensed = body.managerLicensed ?? false;
   const user = await prisma.user.create({
     data: {
       email,
       passwordHash: await hashPassword(password),
       name: body.name?.trim() || null,
       role: assignableRole(email, body.role),
-      approved: body.approved ?? false,
+      approved: body.approved ?? (managerLicensed ? true : false),
+      managerLicensed,
+      licensePurchasedAt: managerLicensed ? new Date() : null,
     },
     select: {
       id: true,
@@ -78,6 +86,7 @@ export async function POST(request: NextRequest) {
       name: true,
       role: true,
       approved: true,
+      managerLicensed: true,
       createdAt: true,
     },
   });

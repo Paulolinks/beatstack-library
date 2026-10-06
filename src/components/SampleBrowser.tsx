@@ -7,6 +7,11 @@ import { SampleTable } from "@/components/SampleTable";
 import { SampleFilterBar } from "@/components/SampleFilterBar";
 import type { SampleListItem } from "@/components/SampleRow";
 import type { CopyFolder } from "@/lib/download-sample-client";
+import { useI18n } from "@/lib/i18n/context";
+import type { MessageKey } from "@/lib/i18n/messages";
+import { isManagerModeClient, isLibraryDesktopClient } from "@/lib/app-mode-client";
+import { FOLDERS_CHANGED_EVENT } from "@/components/FavoriteFoldersPanel";
+import { listFavoriteFolders, listSampleIdsInFolder } from "@/lib/desktop/favorite-folders-client";
 
 export type SampleBrowserPreset = {
   rated?: boolean;
@@ -17,16 +22,21 @@ export type SampleBrowserPreset = {
 
 function SampleBrowserInner({
   title,
+  titleKey,
   preset,
   showRatingFilter = true,
   hideTitle = false,
 }: {
-  title: string;
+  title?: string;
+  titleKey?: MessageKey;
   preset?: SampleBrowserPreset;
   showRatingFilter?: boolean;
   hideTitle?: boolean;
 }) {
+  const { t } = useI18n();
+  const displayTitle = titleKey ? t(titleKey) : (title ?? "");
   const searchParams = useSearchParams();
+  const folderIdFromUrl = searchParams.get("folderId") || undefined;
   const presetRated = preset?.rated ?? false;
   const presetFavorite = preset?.favorite ?? false;
   const presetDownloaded = preset?.downloaded ?? false;
@@ -44,6 +54,61 @@ function SampleBrowserInner({
   const [samples, setSamples] = useState<SampleListItem[]>([]);
   const [popularTags, setPopularTags] = useState<{ name: string; count: number }[]>([]);
   const [loading, setLoading] = useState(false);
+  const isManager = isManagerModeClient();
+  const isLibraryDesktop = isLibraryDesktopClient();
+  const [defaultFolderId, setDefaultFolderId] = useState<string | undefined>();
+  const [localFolderId, setLocalFolderId] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (!isManager || !presetFavorite || folderIdFromUrl) {
+      setDefaultFolderId(undefined);
+      return;
+    }
+    void fetch("/api/manager/favorite-folders")
+      .then((r) => r.json())
+      .then((data: { folders?: Array<{ id: string; isDefault: boolean }> }) => {
+        const defaultFolder = data.folders?.find((f) => f.isDefault);
+        setDefaultFolderId(defaultFolder?.id);
+      })
+      .catch(() => setDefaultFolderId(undefined));
+  }, [isManager, presetFavorite, folderIdFromUrl]);
+
+  useEffect(() => {
+    if (!isLibraryDesktop || !presetFavorite) {
+      setLocalFolderId(undefined);
+      return;
+    }
+    const loadLocalFolder = () => {
+      void listFavoriteFolders()
+        .then(({ folders, activeFavoriteFolderId }) => {
+          const resolved =
+            folderIdFromUrl ??
+            activeFavoriteFolderId ??
+            folders.find((f) => f.isDefault)?.id;
+          setLocalFolderId(resolved);
+        })
+        .catch(() => setLocalFolderId(undefined));
+    };
+    loadLocalFolder();
+    window.addEventListener(FOLDERS_CHANGED_EVENT, loadLocalFolder);
+    return () => window.removeEventListener(FOLDERS_CHANGED_EVENT, loadLocalFolder);
+  }, [isLibraryDesktop, presetFavorite, folderIdFromUrl]);
+
+  useEffect(() => {
+    if (!isManager || !presetFavorite) return;
+    const reload = () => {
+      if (!folderIdFromUrl) {
+        void fetch("/api/manager/favorite-folders")
+          .then((r) => r.json())
+          .then((data: { folders?: Array<{ id: string; isDefault: boolean }> }) => {
+            const defaultFolder = data.folders?.find((f) => f.isDefault);
+            setDefaultFolderId(defaultFolder?.id);
+          });
+      }
+    };
+    window.addEventListener(FOLDERS_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(FOLDERS_CHANGED_EVENT, reload);
+  }, [isManager, presetFavorite, folderIdFromUrl]);
 
   useEffect(() => {
     void fetch("/api/tags")
@@ -60,7 +125,27 @@ function SampleBrowserInner({
     if (selectedTags.length) params.set("tags", selectedTags.join(","));
     if (minRating && !presetRated) params.set("minRating", minRating);
     if (presetRated) params.set("rated", "true");
-    if (presetFavorite) params.set("favorite", "true");
+    if (isLibraryDesktop && presetFavorite) {
+      const folderId = folderIdFromUrl ?? localFolderId;
+      if (!folderId) {
+        setSamples([]);
+        setLoading(false);
+        return;
+      }
+      const ids = await listSampleIdsInFolder(folderId);
+      if (ids.length === 0) {
+        setSamples([]);
+        setLoading(false);
+        return;
+      }
+      params.set("sampleIds", ids.join(","));
+    } else if (folderIdFromUrl) {
+      params.set("favoriteFolderId", folderIdFromUrl);
+    } else if (isManager && presetFavorite && defaultFolderId) {
+      params.set("favoriteFolderId", defaultFolderId);
+    } else if (presetFavorite) {
+      params.set("favorite", "true");
+    }
     if (presetDownloaded) params.set("downloaded", "true");
     params.set("limit", "500");
 
@@ -77,6 +162,11 @@ function SampleBrowserInner({
     presetRated,
     presetFavorite,
     presetDownloaded,
+    folderIdFromUrl,
+    isManager,
+    isLibraryDesktop,
+    defaultFolderId,
+    localFolderId,
   ]);
 
   useEffect(() => {
@@ -120,8 +210,8 @@ function SampleBrowserInner({
 
   return (
     <div>
-      {!hideTitle && (
-        <h1 className="mb-6 text-2xl font-semibold tracking-tight">{title}</h1>
+      {!hideTitle && displayTitle && (
+        <h1 className="mb-6 text-2xl font-semibold tracking-tight">{displayTitle}</h1>
       )}
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -132,7 +222,7 @@ function SampleBrowserInner({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && search()}
-            placeholder="Buscar por vibe, instrumento ou nome..."
+            placeholder={t("searchPlaceholder")}
             className="w-full rounded-lg border border-white/10 bg-[#141418] py-2.5 pl-10 pr-4 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-sky-500/50 focus:outline-none"
           />
         </div>
@@ -141,7 +231,7 @@ function SampleBrowserInner({
           onClick={() => search()}
           className="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-sky-500"
         >
-          Buscar
+          {t("search")}
         </button>
       </div>
 
@@ -164,12 +254,12 @@ function SampleBrowserInner({
       />
 
       <p className="mb-4 text-sm text-zinc-500">
-        {loading ? "Buscando..." : `${samples.length} resultado(s)`}
+        {loading ? t("searching") : `${samples.length} ${t("resultsCount")}`}
       </p>
 
       {!loading && samples.length === 0 ? (
         <p className="rounded-lg border border-white/10 p-8 text-center text-sm text-zinc-500">
-          Nenhum sample encontrado.
+          {t("noSamplesFound")}
         </p>
       ) : (
         <SampleTable
@@ -184,13 +274,14 @@ function SampleBrowserInner({
 }
 
 export function SampleBrowser(props: {
-  title: string;
+  title?: string;
+  titleKey?: MessageKey;
   preset?: SampleBrowserPreset;
   showRatingFilter?: boolean;
   hideTitle?: boolean;
 }) {
   return (
-    <Suspense fallback={<p className="text-zinc-500">Carregando...</p>}>
+    <Suspense fallback={<p className="text-zinc-500">…</p>}>
       <SampleBrowserInner {...props} />
     </Suspense>
   );

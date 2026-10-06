@@ -14,6 +14,7 @@ import {
   Settings2,
   LogOut,
   Users,
+  Cloud,
   CloudUpload,
   Scale,
 } from "lucide-react";
@@ -57,6 +58,7 @@ const ADMIN: Array<{ href: string; labelKey: MessageKey; icon: typeof Settings2 
 ];
 
 const ADMIN_MANAGER: Array<{ href: string; labelKey: MessageKey; icon: typeof CloudUpload }> = [
+  { href: "/cloud", labelKey: "cloudVps" as MessageKey, icon: Cloud },
   { href: "/admin/sync-vps", labelKey: "syncVps" as MessageKey, icon: CloudUpload },
 ];
 

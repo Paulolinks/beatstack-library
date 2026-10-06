@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { SampleTable } from "@/components/SampleTable";
 import { SampleFilterBar } from "@/components/SampleFilterBar";
 import type { SampleListItem } from "@/components/SampleRow";
 import { aggregateTagsFromSamples, filterSamples } from "@/lib/filter-samples";
+import { useActiveFavoriteFolderId } from "@/hooks/useActiveFavoriteFolder";
+import { isManagerModeClient, isLibraryDesktopClient } from "@/lib/app-mode-client";
+import { FOLDERS_CHANGED_EVENT } from "@/components/FavoriteFoldersPanel";
+import { listSampleIdsInFolder } from "@/lib/desktop/favorite-folders-client";
 
 type InitialSample = Omit<SampleListItem, "pack"> & {
   type: string | null;
@@ -25,6 +29,67 @@ export function PackSampleList({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const activeFolderId = useActiveFavoriteFolderId();
+  const isManager = isManagerModeClient();
+  const isLibraryDesktop = isLibraryDesktopClient();
+  const usesFolderScope = (isManager || isLibraryDesktop) && Boolean(activeFolderId);
+  const [folderFavorites, setFolderFavorites] = useState<Map<string, boolean>>(new Map());
+
+  useEffect(() => {
+    if (!usesFolderScope || !activeFolderId) {
+      setFolderFavorites(new Map());
+      return;
+    }
+
+    setFolderFavorites(new Map());
+
+    let cancelled = false;
+
+    if (isLibraryDesktop) {
+      void listSampleIdsInFolder(activeFolderId)
+        .then((ids) => {
+          if (cancelled) return;
+          const idSet = new Set(ids);
+          const map = new Map<string, boolean>();
+          for (const s of initialSamples) {
+            map.set(s.id, idSet.has(s.id));
+          }
+          setFolderFavorites(map);
+        })
+        .catch(() => {
+          if (!cancelled) setFolderFavorites(new Map());
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void fetch(
+      `/api/samples?packId=${encodeURIComponent(pack.id)}&limit=500&forFolderFavorite=${encodeURIComponent(activeFolderId)}`,
+    )
+      .then((r) => r.json())
+      .then((data: { samples?: SampleListItem[] }) => {
+        if (cancelled) return;
+        const map = new Map<string, boolean>();
+        for (const s of data.samples ?? []) {
+          map.set(s.id, s.meta?.favorite ?? false);
+        }
+        setFolderFavorites(map);
+      })
+      .catch(() => {
+        if (!cancelled) setFolderFavorites(new Map());
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [usesFolderScope, isLibraryDesktop, activeFolderId, pack.id, refreshKey, initialSamples]);
+
+  useEffect(() => {
+    const onFolderChange = () => setRefreshKey((k) => k + 1);
+    window.addEventListener(FOLDERS_CHANGED_EVENT, onFolderChange);
+    return () => window.removeEventListener(FOLDERS_CHANGED_EVENT, onFolderChange);
+  }, []);
 
   const allSamples = useMemo(() => {
     void refreshKey;
@@ -38,8 +103,15 @@ export function PackSampleList({
         producer: pack.producer,
         coverPath: pack.coverPath,
       },
+      meta: {
+        rating: s.meta?.rating ?? null,
+        favorite: usesFolderScope
+            ? (folderFavorites.get(s.id) ?? false)
+            : (s.meta?.favorite ?? false),
+        downloadedAt: s.meta?.downloadedAt ?? null,
+      },
     })) satisfies SampleListItem[];
-  }, [initialSamples, pack, refreshKey]);
+  }, [initialSamples, pack, refreshKey, usesFolderScope, folderFavorites]);
 
   const samples = useMemo(
     () =>
@@ -119,6 +191,7 @@ export function PackSampleList({
         samples={samples}
         onMetaChange={() => setRefreshKey((k) => k + 1)}
         onTagClick={toggleTag}
+        metaScopeKey={activeFolderId ?? undefined}
       />
     </div>
   );

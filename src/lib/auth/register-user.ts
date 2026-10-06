@@ -18,6 +18,7 @@ export type RegisterUserInput = {
   password?: string;
   name?: string | null;
   approved?: boolean;
+  managerLicensed?: boolean;
   source?: string | null;
 };
 
@@ -30,6 +31,7 @@ export type RegisterUserResult =
         email: string;
         name: string | null;
         approved: boolean;
+        managerLicensed: boolean;
       };
       password: string;
     }
@@ -52,6 +54,7 @@ export async function registerUserFromWebhook(
   const passwordHash = await hashPassword(password);
   const name = input.name?.trim() || null;
   const approved = input.approved ?? true;
+  const grantManagerLicense = input.managerLicensed === true;
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -62,12 +65,16 @@ export async function registerUserFromWebhook(
         name: name ?? existing.name,
         approved,
         role: assignableRole(email, existing.role),
+        ...(grantManagerLicense
+          ? { managerLicensed: true, licensePurchasedAt: new Date() }
+          : {}),
       },
       select: {
         id: true,
         email: true,
         name: true,
         approved: true,
+        managerLicensed: true,
       },
     });
 
@@ -86,12 +93,15 @@ export async function registerUserFromWebhook(
       name,
       role: assignableRole(email, "user"),
       approved,
+      managerLicensed: grantManagerLicense,
+      licensePurchasedAt: grantManagerLicense ? new Date() : null,
     },
     select: {
       id: true,
       email: true,
       name: true,
       approved: true,
+      managerLicensed: true,
     },
   });
 
