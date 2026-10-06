@@ -13,7 +13,7 @@ import { cn, formatDuration, formatKey, parseTagsJson, parseWaveformPeaks } from
 import { resolveSampleBpm, resolveSampleKey } from "@/lib/sample-metadata";
 import { isLikelyFakePeaks } from "@/lib/audio/waveform-client";
 import { downloadSampleFile, usesCopyFlow, type CopyFolder } from "@/lib/download-sample-client";
-import { isManagerModeClient, isLibraryDesktopClient } from "@/lib/app-mode-client";
+import { isManagerModeClient, usesCloudFavoriteFoldersClient } from "@/lib/app-mode-client";
 import {
   copySampleToActiveFavoriteFolder,
   removeSampleFromActiveFavoriteFolder,
@@ -46,10 +46,15 @@ export interface SampleListItem {
     favorite: boolean;
     downloadedAt?: string | Date | null;
   } | null;
-  /** Samples da aba Nuvem (VPS) tocam por proxy e não têm meta local. */
-  source?: "cloud";
+  /**
+   * "cloud": aba Nuvem do Manager (proxy do VPS, sem meta local).
+   * "folder": cópia salva numa pasta de favoritos do Library (pode existir sem o pack).
+   */
+  source?: "cloud" | "folder";
   audioUrl?: string;
   coverUrl?: string | null;
+  folderItemId?: string;
+  packDeleted?: boolean;
 }
 
 export function SampleRow({
@@ -57,11 +62,14 @@ export function SampleRow({
   onMetaChange,
   onTagClick,
   copyFolder = "downloads",
+  folderId,
 }: {
   sample: SampleListItem;
   onMetaChange?: () => void;
   onTagClick?: (tag: string) => void;
   copyFolder?: CopyFolder;
+  /** Pasta de favoritos exibida (página de favoritos do Library). */
+  folderId?: string;
 }) {
   const { t } = useI18n();
   const rowRef = useRef<HTMLTableRowElement>(null);
@@ -74,10 +82,12 @@ export function SampleRow({
   const needsDecode =
     storedPeaks.length < 64 || isLikelyFakePeaks(storedPeaks);
 
+  const isFolderItem = sample.source === "folder";
   const { peaks } = useSamplePeaks(
     sample.id,
     sample.waveformPeaks,
     isCurrent || (rowVisible && needsDecode),
+    sample.audioUrl ? { audioUrl: sample.audioUrl, persist: !isFolderItem } : undefined,
   );
 
   const { rating, favorite, updateMeta } = useSampleMeta(
@@ -91,7 +101,12 @@ export function SampleRow({
   const isDownloaded = Boolean(sample.meta?.downloadedAt);
 
   const tags = buildTags(sample);
-  const coverUrl = sample.pack.coverPath ? `/api/covers/${sample.pack.id}` : null;
+  const coverUrl =
+    sample.coverUrl !== undefined
+      ? sample.coverUrl
+      : sample.pack.coverPath
+        ? `/api/covers/${sample.pack.id}`
+        : null;
 
   const bpm = useMemo(
     () => resolveSampleBpm(sample.bpm, sample.fileName, sample.relativePath),
@@ -110,6 +125,7 @@ export function SampleRow({
         sample.fileName,
         copyFolder,
         sample.pack.slug,
+        isFolderItem && sample.audioUrl ? `${sample.audioUrl}?download=1` : undefined,
       );
       if (!result.ok) {
         window.alert(result.error ?? "Não foi possível copiar o sample");
@@ -130,28 +146,43 @@ export function SampleRow({
 
   async function handleFavoriteClick() {
     const next = !favorite;
-    const result = await updateMeta({ favorite: next });
-    if (!result.ok) {
-      window.alert(result.error ?? t("favoriteFailed"));
-      return;
-    }
 
-    if (isLibraryDesktopClient()) {
+    if (usesCloudFavoriteFoldersClient()) {
       if (next) {
-        const copy = await copySampleToActiveFavoriteFolder(
+        const saved = await copySampleToActiveFavoriteFolder(
           sample.id,
           sample.fileName,
           sample.pack.slug,
         );
-        if (!copy.ok) {
-          window.alert(copy.error ?? t("favoriteFailed"));
+        if (!saved.ok) {
+          window.alert(saved.error ?? t("favoriteFailed"));
           return;
         }
         setFavoriteCopied(true);
         setTimeout(() => setFavoriteCopied(false), 2500);
       } else {
-        await removeSampleFromActiveFavoriteFolder(sample.pack.slug, sample.fileName, sample.id);
+        const removed = await removeSampleFromActiveFavoriteFolder(
+          sample.pack.slug,
+          sample.fileName,
+          sample.id,
+          { folderId, folderItemId: sample.folderItemId },
+        );
+        if (!removed.ok) {
+          window.alert(removed.error ?? t("favoriteFailed"));
+          return;
+        }
       }
+      if (sample.packDeleted) {
+        onMetaChange?.();
+        return;
+      }
+      await updateMeta({ favorite: next });
+      return;
+    }
+
+    const result = await updateMeta({ favorite: next });
+    if (!result.ok) {
+      window.alert(result.error ?? t("favoriteFailed"));
       return;
     }
 
@@ -161,7 +192,7 @@ export function SampleRow({
     }
   }
 
-  const usesLocalFavoriteCopy = isManagerModeClient() || isLibraryDesktopClient();
+  const usesLocalFavoriteCopy = isManagerModeClient() || usesCloudFavoriteFoldersClient();
   const actionTitle = usesCopyFlow()
     ? t("copySampleHint")
     : t("downloadSample");
@@ -175,19 +206,34 @@ export function SampleRow({
       )}
     >
       <td className="px-2 py-2 align-middle">
-        <Link
-          href={`/packs/${sample.pack.slug}`}
-          title={`Ver pack: ${sample.pack.name}`}
-          className="relative mx-auto block h-10 w-10 overflow-hidden rounded bg-zinc-800 ring-0 transition hover:ring-2 hover:ring-sky-500/50"
-        >
-          {coverUrl ? (
-            <Image src={coverUrl} alt={sample.pack.name} fill className="object-cover" unoptimized />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-600 transition group-hover:text-zinc-400">
-              PACK
-            </div>
-          )}
-        </Link>
+        {sample.packDeleted ? (
+          <div
+            title={`${sample.pack.name} (pack excluído — sample salvo na pasta)`}
+            className="relative mx-auto block h-10 w-10 overflow-hidden rounded bg-zinc-800"
+          >
+            {coverUrl ? (
+              <Image src={coverUrl} alt={sample.pack.name} fill className="object-cover" unoptimized />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-600">
+                PACK
+              </div>
+            )}
+          </div>
+        ) : (
+          <Link
+            href={`/packs/${sample.pack.slug}`}
+            title={`Ver pack: ${sample.pack.name}`}
+            className="relative mx-auto block h-10 w-10 overflow-hidden rounded bg-zinc-800 ring-0 transition hover:ring-2 hover:ring-sky-500/50"
+          >
+            {coverUrl ? (
+              <Image src={coverUrl} alt={sample.pack.name} fill className="object-cover" unoptimized />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-[9px] text-zinc-600 transition group-hover:text-zinc-400">
+                PACK
+              </div>
+            )}
+          </Link>
+        )}
       </td>
 
       <td className="px-1 py-2 align-middle">
@@ -296,7 +342,9 @@ export function SampleRow({
           >
             <Heart className={cn("h-4 w-4", (favorite || favoriteCopied) && "fill-current")} />
           </button>
-          <StarRating value={rating} onChange={(r) => updateMeta({ rating: r })} />
+          {!sample.packDeleted && (
+            <StarRating value={rating} onChange={(r) => updateMeta({ rating: r })} />
+          )}
         </div>
       </td>
     </tr>

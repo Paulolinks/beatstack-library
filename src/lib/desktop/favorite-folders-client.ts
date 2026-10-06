@@ -1,5 +1,4 @@
-import { isManagerModeClient } from "@/lib/app-mode-client";
-import { isDesktopClient } from "@/lib/download-sample-client";
+import { isManagerModeClient, usesCloudFavoriteFoldersClient } from "@/lib/app-mode-client";
 import { dispatchFoldersChanged } from "@/lib/manager/favorite-folder-events";
 
 export type FavoriteFolderRow = {
@@ -8,50 +7,49 @@ export type FavoriteFolderRow = {
   slug: string;
   isDefault: boolean;
   diskPath?: string;
+  itemCount?: number;
 };
 
+type FolderList = { folders: FavoriteFolderRow[]; activeFavoriteFolderId: string | null };
+
 export function usesFavoriteFolders(): boolean {
-  if (isManagerModeClient()) return true;
-  return isDesktopClient() && Boolean(window.beatstack?.favoriteFolders);
+  return isManagerModeClient() || usesCloudFavoriteFoldersClient();
 }
 
-async function listFromApi(): Promise<{
-  folders: FavoriteFolderRow[];
-  activeFavoriteFolderId: string | null;
-}> {
-  const res = await fetch("/api/manager/favorite-folders");
-  const data = (await res.json()) as {
-    folders?: FavoriteFolderRow[];
-    activeFavoriteFolderId?: string | null;
-    error?: string;
-  };
-  if (!res.ok) {
-    throw new Error(data.error ?? "Erro ao carregar pastas");
+function folderApiBase(): string {
+  return isManagerModeClient() ? "/api/manager/favorite-folders" : "/api/folders";
+}
+
+/** Pasta local (Documentos/BeatStack Library/Favoritos) onde o app desktop guarda a cópia. */
+async function localFavoritesRoot(): Promise<string | null> {
+  const local = window.beatstack?.favoriteFolders;
+  if (!local) return null;
+  try {
+    const data = await local.list();
+    return data.folders?.find((f) => f.isDefault)?.diskPath ?? null;
+  } catch {
+    return null;
   }
-  return {
-    folders: data.folders ?? [],
-    activeFavoriteFolderId: data.activeFavoriteFolderId ?? null,
-  };
 }
 
-async function listFromDesktop(): Promise<{
-  folders: FavoriteFolderRow[];
-  activeFavoriteFolderId: string | null;
-}> {
-  const data = await window.beatstack!.favoriteFolders!.list();
-  return {
-    folders: data.folders ?? [],
-    activeFavoriteFolderId: data.activeFavoriteFolderId ?? null,
-  };
+function localDiskPath(root: string, folder: FavoriteFolderRow): string {
+  if (folder.isDefault) return root;
+  const sep = root.includes("\\") ? "\\" : "/";
+  return `${root.replace(/[\\/]+$/, "")}${sep}${folder.slug.replace(/[<>:"/\\|?*]/g, "_")}`;
 }
 
-export async function listFavoriteFolders(): Promise<{
-  folders: FavoriteFolderRow[];
-  activeFavoriteFolderId: string | null;
-}> {
-  if (isManagerModeClient()) return listFromApi();
-  if (window.beatstack?.favoriteFolders) return listFromDesktop();
-  throw new Error("Pastas favoritas indisponíveis");
+export async function listFavoriteFolders(): Promise<FolderList> {
+  if (!usesFavoriteFolders()) throw new Error("Pastas favoritas indisponíveis");
+  const res = await fetch(folderApiBase(), { cache: "no-store" });
+  const data = (await res.json()) as Partial<FolderList> & { error?: string };
+  if (!res.ok) throw new Error(data.error ?? "Erro ao carregar pastas");
+
+  let folders = data.folders ?? [];
+  if (usesCloudFavoriteFoldersClient()) {
+    const root = await localFavoritesRoot();
+    if (root) folders = folders.map((f) => ({ ...f, diskPath: localDiskPath(root, f) }));
+  }
+  return { folders, activeFavoriteFolderId: data.activeFavoriteFolderId ?? null };
 }
 
 export async function createFavoriteFolder(name: string): Promise<{
@@ -59,112 +57,96 @@ export async function createFavoriteFolder(name: string): Promise<{
   error?: string;
   status?: number;
 }> {
-  if (isManagerModeClient()) {
-    const res = await fetch("/api/manager/favorite-folders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    const data = (await res.json()) as { error?: string };
-    return { ok: res.ok, error: data.error, status: res.status };
-  }
-
-  const result = await window.beatstack!.favoriteFolders!.create(name);
-  return { ok: result.ok, error: result.error, status: result.status };
+  const res = await fetch(folderApiBase(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const data = (await res.json()) as { error?: string };
+  return { ok: res.ok, error: data.error, status: res.status };
 }
 
 export async function setActiveFavoriteFolder(folderId: string | null): Promise<void> {
-  if (isManagerModeClient()) {
-    await fetch("/api/manager/favorite-folders", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activeFavoriteFolderId: folderId }),
-    });
-    return;
-  }
-  await window.beatstack!.favoriteFolders!.setActive(folderId);
+  await fetch(folderApiBase(), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ activeFavoriteFolderId: folderId }),
+  });
 }
 
 export async function deleteFavoriteFolderById(folderId: string): Promise<{
   ok: boolean;
   error?: string;
 }> {
-  if (isManagerModeClient()) {
-    const res = await fetch(`/api/manager/favorite-folders/${folderId}`, {
-      method: "DELETE",
-    });
-    const data = (await res.json()) as { error?: string };
-    return { ok: res.ok, error: data.error };
-  }
-  const result = await window.beatstack!.favoriteFolders!.delete(folderId);
-  return { ok: result.ok, error: result.error };
+  const res = await fetch(`${folderApiBase()}/${folderId}`, { method: "DELETE" });
+  const data = (await res.json()) as { error?: string };
+  return { ok: res.ok, error: data.error };
 }
 
 export async function listSampleIdsInFolder(folderId?: string): Promise<string[]> {
+  if (!folderId) return [];
   if (isManagerModeClient()) {
-    if (!folderId) return [];
     const res = await fetch(
       `/api/samples?favoriteFolderId=${encodeURIComponent(folderId)}&limit=500`,
     );
     const data = (await res.json()) as { samples?: Array<{ id: string }> };
     return (data.samples ?? []).map((s) => s.id);
   }
-  if (!window.beatstack?.favoriteFolders?.listSampleIds) return [];
-  return window.beatstack.favoriteFolders.listSampleIds(folderId ?? null);
+  const res = await fetch(`/api/folders/${encodeURIComponent(folderId)}/sample-ids`, {
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { sampleIds?: string[] };
+  return data.sampleIds ?? [];
 }
 
-export async function registerSampleInActiveFolder(
-  sampleId: string,
-  packSlug: string,
-  fileName: string,
-  folderId?: string,
-): Promise<void> {
-  if (!window.beatstack?.favoriteFolders?.addSample) return;
-  await window.beatstack.favoriteFolders.addSample({ sampleId, folderId, packSlug, fileName });
-  dispatchFoldersChanged();
+async function resolveActiveFolder(): Promise<FavoriteFolderRow | null> {
+  const { folders, activeFavoriteFolderId } = await listFavoriteFolders();
+  return (
+    folders.find((f) => f.id === activeFavoriteFolderId) ??
+    folders.find((f) => f.isDefault) ??
+    folders[0] ??
+    null
+  );
 }
 
-export async function unregisterSampleFromActiveFolder(
-  sampleId: string,
-  packSlug: string,
-  fileName: string,
-  folderId?: string,
-): Promise<void> {
-  if (!window.beatstack?.favoriteFolders?.removeSample) return;
-  await window.beatstack.favoriteFolders.removeSample({ sampleId, folderId, packSlug, fileName });
-  dispatchFoldersChanged();
+async function saveLocalCopy(folder: FavoriteFolderRow, sampleId: string, fileName: string, packSlug: string) {
+  if (!window.beatstack?.saveSampleToFavorite) return null;
+  const res = await fetch(`/api/samples/${sampleId}/download`);
+  if (!res.ok) return null;
+  return window.beatstack.saveSampleToFavorite({
+    packSlug,
+    fileName,
+    buffer: await res.arrayBuffer(),
+    folderSlug: folder.slug,
+  });
 }
 
+/**
+ * Coração no Library: salva o sample na pasta ativa no VPS (aparece em qualquer
+ * computador e não some quando o pack é excluído). No app desktop também copia
+ * para Documentos/BeatStack Library/Favoritos/<pasta>.
+ */
 export async function copySampleToActiveFavoriteFolder(
   sampleId: string,
   fileName: string,
   packSlug: string,
 ): Promise<{ ok: boolean; path?: string; clipboardOk?: boolean; error?: string }> {
-  if (!window.beatstack?.saveSampleToFavorite) {
-    return { ok: false, error: "App desktop não suporta favoritos locais" };
-  }
-
   try {
-    const res = await fetch(`/api/samples/${sampleId}/download`);
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: data.error ?? "Falha ao baixar sample" };
-    }
-    const buffer = await res.arrayBuffer();
-    const result = await window.beatstack.saveSampleToFavorite({
-      packSlug,
-      fileName,
-      buffer,
+    const folder = await resolveActiveFolder();
+    if (!folder) return { ok: false, error: "Nenhuma pasta de favoritos" };
+
+    const res = await fetch(`/api/folders/${folder.id}/items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sampleId }),
     });
-    if (!result.ok) {
-      return { ok: false, error: result.error ?? "Falha ao salvar na pasta" };
-    }
-    await registerSampleInActiveFolder(sampleId, packSlug, fileName);
-    return {
-      ok: true,
-      path: result.path,
-      clipboardOk: result.clipboardOk,
-    };
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) return { ok: false, error: data.error ?? "Falha ao salvar na pasta" };
+
+    const local = await saveLocalCopy(folder, sampleId, fileName, packSlug).catch(() => null);
+    dispatchFoldersChanged();
+    return { ok: true, path: local?.path, clipboardOk: local?.clipboardOk };
   } catch {
     return { ok: false, error: "Erro de rede" };
   }
@@ -174,13 +156,60 @@ export async function removeSampleFromActiveFavoriteFolder(
   packSlug: string,
   fileName: string,
   sampleId?: string,
+  options?: { folderId?: string; folderItemId?: string },
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!window.beatstack?.removeSampleFromFavorite) {
-    return { ok: false, error: "App desktop não suporta favoritos locais" };
+  try {
+    const folders = await listFavoriteFolders();
+    const folder =
+      folders.folders.find((f) => f.id === (options?.folderId ?? folders.activeFavoriteFolderId)) ??
+      folders.folders.find((f) => f.isDefault);
+    if (!folder) return { ok: false, error: "Nenhuma pasta de favoritos" };
+
+    const query = options?.folderItemId
+      ? `itemId=${encodeURIComponent(options.folderItemId)}`
+      : `sampleId=${encodeURIComponent(sampleId ?? "")}`;
+    const res = await fetch(`/api/folders/${folder.id}/items?${query}`, { method: "DELETE" });
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) return { ok: false, error: data.error ?? "Falha ao remover da pasta" };
+
+    await window.beatstack
+      ?.removeSampleFromFavorite?.({ packSlug, fileName, folderSlug: folder.slug })
+      .catch(() => undefined);
+    dispatchFoldersChanged();
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Erro de rede" };
   }
-  const result = await window.beatstack.removeSampleFromFavorite({ packSlug, fileName });
-  if (result.ok) {
-    await unregisterSampleFromActiveFolder(sampleId ?? "", packSlug, fileName);
+}
+
+const LOCAL_MIGRATION_KEY = "beatstack:cloud-folders-migrated";
+
+/** Uma vez por computador: leva as pastas que estavam só no app desktop para o VPS. */
+export async function migrateLocalFoldersToCloud(): Promise<boolean> {
+  if (!usesCloudFavoriteFoldersClient()) return false;
+  const local = window.beatstack?.favoriteFolders;
+  if (!local?.list || !local.listSampleIds) return false;
+  if (window.localStorage.getItem(LOCAL_MIGRATION_KEY)) return false;
+
+  try {
+    const data = await local.list();
+    const payload = [];
+    for (const folder of data.folders ?? []) {
+      const sampleIds = await local.listSampleIds(folder.id);
+      if (sampleIds.length === 0 && folder.isDefault) continue;
+      payload.push({ name: folder.name, isDefault: folder.isDefault, sampleIds });
+    }
+    if (payload.length > 0) {
+      const res = await fetch("/api/folders/import-local", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folders: payload }),
+      });
+      if (!res.ok) return false;
+    }
+    window.localStorage.setItem(LOCAL_MIGRATION_KEY, new Date().toISOString());
+    return payload.length > 0;
+  } catch {
+    return false;
   }
-  return result;
 }

@@ -39,6 +39,8 @@ const LIBRARY_BLOCKED_ON_LICENSE = [
   /^\/api\/library/,
   /^\/api\/manager/,
   /^\/api\/webhooks/,
+  /^\/api\/folders/,
+  /^\/api\/folder-items/,
 ];
 
 function isPublicPath(pathname: string): boolean {

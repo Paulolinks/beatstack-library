@@ -7,8 +7,13 @@ export function isLibraryDesktopClient(): boolean {
   return Boolean(window.beatstack?.isDesktop) && !isManagerModeClient() && !isLicenseServerModeClient();
 }
 
+/** Library (VPS, web ou desktop): pastas de favoritos salvas no servidor, por usuário. */
+export function usesCloudFavoriteFoldersClient(): boolean {
+  return !isManagerModeClient() && !isLicenseServerModeClient();
+}
+
 export function usesFavoriteFoldersClient(): boolean {
-  return isManagerModeClient() || isLibraryDesktopClient();
+  return isManagerModeClient() || usesCloudFavoriteFoldersClient();
 }
 
 export function isLicenseServerModeClient(): boolean {

@@ -80,6 +80,7 @@ model Sample {
   meta            UserSampleMeta?
   collectionItems CollectionSample[]
   favoriteEntries SampleFavoriteFolder[]
+  cloudFavorites  CloudFavoriteItem[]
 
   @@index([packId])
   @@index([type])
@@ -202,6 +203,62 @@ model SampleFavoriteFolder {
   @@unique([sampleId, folderId])
   @@index([folderId])
   @@map("sample_favorite_folders")
+}
+
+/// Pastas de favoritos do Library (VPS), por usuário — iguais em qualquer computador.
+model CloudFavoriteFolder {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  slug      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  items CloudFavoriteItem[]
+
+  @@unique([userId, slug])
+  @@index([userId])
+  @@map("cloud_favorite_folders")
+}
+
+/// Sample salvo numa pasta: arquivo próprio em storage/favorites (sobrevive à exclusão do pack).
+model CloudFavoriteItem {
+  id            String   @id @default(cuid())
+  folderId      String
+  sampleId      String?
+  fileName      String
+  displayName   String
+  relativePath  String
+  filePath      String
+  coverPath     String?
+  packName      String
+  packSlug      String
+  producer      String?
+  durationMs    Int?
+  type          String?
+  instrument    String?
+  category      String?
+  genre         String?
+  bpm           Int?
+  key           String?
+  tags          String   @default("[]")
+  waveformPeaks String?
+  addedAt       DateTime @default(now())
+
+  folder CloudFavoriteFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  sample Sample?             @relation(fields: [sampleId], references: [id], onDelete: SetNull)
+
+  @@unique([folderId, sampleId])
+  @@index([folderId])
+  @@index([sampleId])
+  @@map("cloud_favorite_items")
+}
+
+model CloudFavoriteSetting {
+  userId         String  @id
+  activeFolderId String?
+
+  @@map("cloud_favorite_settings")
 }
 
 model ManagerSetting {

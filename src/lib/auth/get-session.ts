@@ -91,9 +91,12 @@ async function resolveSessionFromToken(token: string | undefined): Promise<Sessi
     return { session: null };
   }
 
+  /** Admin pode ficar logado no Library em vários computadores; demais contas: 1 sessão. */
+  const adminMultiDevice =
+    payload.clientType !== "manager" && resolveEffectiveRole(user.email, user.role) === "admin";
   const activeId =
     payload.clientType === "manager" ? user.activeManagerSessionId : user.activeSessionId;
-  if (!activeId || activeId !== payload.sessionId) {
+  if (!adminMultiDevice && (!activeId || activeId !== payload.sessionId)) {
     return { session: null, reason: "SESSION_REPLACED" };
   }
 

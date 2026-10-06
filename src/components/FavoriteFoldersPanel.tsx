@@ -9,6 +9,7 @@ import {
   createFavoriteFolder,
   deleteFavoriteFolderById,
   listFavoriteFolders,
+  migrateLocalFoldersToCloud,
   setActiveFavoriteFolder,
   usesFavoriteFolders,
   type FavoriteFolderRow,
@@ -103,6 +104,13 @@ export function FavoriteFoldersPanel() {
       setLoading(false);
     }
   }, [enabled, t]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    void migrateLocalFoldersToCloud().then((imported) => {
+      if (imported) dispatchFoldersChanged();
+    });
+  }, [enabled]);
 
   useEffect(() => {
     void load();

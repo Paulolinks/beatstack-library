@@ -62,13 +62,14 @@ async function copySampleFromRemoteServer(
   fileName: string,
   folder: CopyFolder,
   packSlug: string,
+  downloadUrl?: string,
 ): Promise<{ ok: boolean; path?: string; clipboardOk?: boolean; error?: string }> {
   if (!window.beatstack?.saveSampleLocal) {
     return { ok: false, error: "App desktop não suporta cópia remota nesta versão" };
   }
 
   try {
-    const res = await fetch(`/api/samples/${sampleId}/download`);
+    const res = await fetch(downloadUrl ?? `/api/samples/${sampleId}/download`);
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: data.error ?? "Falha ao baixar sample do servidor" };
@@ -105,12 +106,13 @@ export async function copySampleToLibrary(
   fileName: string,
   folder: CopyFolder = "downloads",
   packSlug = "pack",
+  downloadUrl?: string,
 ): Promise<{ ok: boolean; path?: string; clipboardOk?: boolean; error?: string }> {
+  if (isDesktopClient() && (downloadUrl || !isLocalServer())) {
+    return copySampleFromRemoteServer(sampleId, fileName, folder, packSlug, downloadUrl);
+  }
   if (isLocalServer()) {
     return copySampleOnLocalServer(sampleId, folder);
-  }
-  if (isDesktopClient()) {
-    return copySampleFromRemoteServer(sampleId, fileName, folder, packSlug);
   }
   return { ok: false, error: "Cópia local disponível apenas no app desktop ou localhost" };
 }
@@ -120,14 +122,15 @@ export async function downloadSampleFile(
   fileName: string,
   folder: CopyFolder = "downloads",
   packSlug = "pack",
+  downloadUrl?: string,
 ): Promise<{ ok: boolean; path?: string; clipboardOk?: boolean; mode: "copy" | "download"; error?: string }> {
-  if (usesCopyFlow()) {
-    const result = await copySampleToLibrary(sampleId, fileName, folder, packSlug);
+  if (usesCopyFlow() && (isDesktopClient() || !downloadUrl)) {
+    const result = await copySampleToLibrary(sampleId, fileName, folder, packSlug, downloadUrl);
     return { ...result, mode: "copy" };
   }
 
   try {
-    const res = await fetch(`/api/samples/${sampleId}/download`);
+    const res = await fetch(downloadUrl ?? `/api/samples/${sampleId}/download`);
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, mode: "download", error: data.error ?? "Falha ao baixar sample" };

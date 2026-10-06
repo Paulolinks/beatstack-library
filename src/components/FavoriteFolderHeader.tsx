@@ -8,6 +8,7 @@ import {
   usesFavoriteFolders,
   type FavoriteFolderRow,
 } from "@/lib/desktop/favorite-folders-client";
+import { isManagerModeClient } from "@/lib/app-mode-client";
 
 interface FavoriteFolderHeaderProps {
   folderId?: string;
@@ -49,17 +50,25 @@ export function FavoriteFolderHeader({ folderId }: FavoriteFolderHeaderProps) {
   return (
     <div className="mb-6">
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">{folder.name}</h1>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-        <span className="font-mono break-all">{folder.diskPath}</span>
-        <button
-          type="button"
-          onClick={() => void openInExplorer()}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-zinc-300 transition hover:bg-white/10 hover:text-white"
-        >
-          <FolderOpen className="h-3.5 w-3.5" />
-          {t("openFolder")}
-        </button>
-      </div>
+      {!isManagerModeClient() && (
+        <p className="mt-1 text-xs text-zinc-500">
+          Pasta salva no VPS — aparece igual em qualquer computador e os samples continuam aqui
+          mesmo se o pack for excluído.
+        </p>
+      )}
+      {folder.diskPath && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+          <span className="font-mono break-all">{folder.diskPath}</span>
+          <button
+            type="button"
+            onClick={() => void openInExplorer()}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-zinc-300 transition hover:bg-white/10 hover:text-white"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            {t("openFolder")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

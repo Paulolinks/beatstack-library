@@ -9,6 +9,7 @@ export function SampleTable({
   onTagClick,
   copyFolder = "downloads",
   metaScopeKey,
+  folderId,
 }: {
   samples: SampleListItem[];
   onMetaChange?: () => void;
@@ -16,6 +17,7 @@ export function SampleTable({
   copyFolder?: CopyFolder;
   /** Troca de pasta de favoritos — força reset do coração por sample. */
   metaScopeKey?: string;
+  folderId?: string;
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-white/10 bg-[#101014]">
@@ -57,6 +59,7 @@ export function SampleTable({
                 onMetaChange={onMetaChange}
                 onTagClick={onTagClick}
                 copyFolder={copyFolder}
+                folderId={folderId}
               />
             ))
           )}

@@ -7,7 +7,7 @@ import { SampleFilterBar } from "@/components/SampleFilterBar";
 import type { SampleListItem } from "@/components/SampleRow";
 import { aggregateTagsFromSamples, filterSamples } from "@/lib/filter-samples";
 import { useActiveFavoriteFolderId } from "@/hooks/useActiveFavoriteFolder";
-import { isManagerModeClient, isLibraryDesktopClient } from "@/lib/app-mode-client";
+import { isManagerModeClient, usesCloudFavoriteFoldersClient } from "@/lib/app-mode-client";
 import { FOLDERS_CHANGED_EVENT } from "@/components/FavoriteFoldersPanel";
 import { listSampleIdsInFolder } from "@/lib/desktop/favorite-folders-client";
 
@@ -31,8 +31,8 @@ export function PackSampleList({
   const [refreshKey, setRefreshKey] = useState(0);
   const activeFolderId = useActiveFavoriteFolderId();
   const isManager = isManagerModeClient();
-  const isLibraryDesktop = isLibraryDesktopClient();
-  const usesFolderScope = (isManager || isLibraryDesktop) && Boolean(activeFolderId);
+  const isCloudFolders = usesCloudFavoriteFoldersClient();
+  const usesFolderScope = (isManager || isCloudFolders) && Boolean(activeFolderId);
   const [folderFavorites, setFolderFavorites] = useState<Map<string, boolean>>(new Map());
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export function PackSampleList({
 
     let cancelled = false;
 
-    if (isLibraryDesktop) {
+    if (isCloudFolders) {
       void listSampleIdsInFolder(activeFolderId)
         .then((ids) => {
           if (cancelled) return;
@@ -83,7 +83,7 @@ export function PackSampleList({
     return () => {
       cancelled = true;
     };
-  }, [usesFolderScope, isLibraryDesktop, activeFolderId, pack.id, refreshKey, initialSamples]);
+  }, [usesFolderScope, isCloudFolders, activeFolderId, pack.id, refreshKey, initialSamples]);
 
   useEffect(() => {
     const onFolderChange = () => setRefreshKey((k) => k + 1);

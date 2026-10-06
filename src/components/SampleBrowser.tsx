@@ -9,9 +9,10 @@ import type { SampleListItem } from "@/components/SampleRow";
 import type { CopyFolder } from "@/lib/download-sample-client";
 import { useI18n } from "@/lib/i18n/context";
 import type { MessageKey } from "@/lib/i18n/messages";
-import { isManagerModeClient, isLibraryDesktopClient } from "@/lib/app-mode-client";
+import { isManagerModeClient, usesCloudFavoriteFoldersClient } from "@/lib/app-mode-client";
 import { FOLDERS_CHANGED_EVENT } from "@/components/FavoriteFoldersPanel";
-import { listFavoriteFolders, listSampleIdsInFolder } from "@/lib/desktop/favorite-folders-client";
+import { listFavoriteFolders } from "@/lib/desktop/favorite-folders-client";
+import { filterSamples } from "@/lib/filter-samples";
 
 export type SampleBrowserPreset = {
   rated?: boolean;
@@ -55,7 +56,7 @@ function SampleBrowserInner({
   const [popularTags, setPopularTags] = useState<{ name: string; count: number }[]>([]);
   const [loading, setLoading] = useState(false);
   const isManager = isManagerModeClient();
-  const isLibraryDesktop = isLibraryDesktopClient();
+  const isCloudFolders = usesCloudFavoriteFoldersClient();
   const [defaultFolderId, setDefaultFolderId] = useState<string | undefined>();
   const [localFolderId, setLocalFolderId] = useState<string | undefined>();
 
@@ -74,25 +75,23 @@ function SampleBrowserInner({
   }, [isManager, presetFavorite, folderIdFromUrl]);
 
   useEffect(() => {
-    if (!isLibraryDesktop || !presetFavorite) {
+    if (!isCloudFolders || !presetFavorite) {
       setLocalFolderId(undefined);
       return;
     }
-    const loadLocalFolder = () => {
+    const loadCloudFolder = () => {
+      if (folderIdFromUrl) {
+        setLocalFolderId(folderIdFromUrl);
+        return;
+      }
       void listFavoriteFolders()
-        .then(({ folders, activeFavoriteFolderId }) => {
-          const resolved =
-            folderIdFromUrl ??
-            activeFavoriteFolderId ??
-            folders.find((f) => f.isDefault)?.id;
-          setLocalFolderId(resolved);
-        })
+        .then(({ folders }) => setLocalFolderId(folders.find((f) => f.isDefault)?.id))
         .catch(() => setLocalFolderId(undefined));
     };
-    loadLocalFolder();
-    window.addEventListener(FOLDERS_CHANGED_EVENT, loadLocalFolder);
-    return () => window.removeEventListener(FOLDERS_CHANGED_EVENT, loadLocalFolder);
-  }, [isLibraryDesktop, presetFavorite, folderIdFromUrl]);
+    loadCloudFolder();
+    window.addEventListener(FOLDERS_CHANGED_EVENT, loadCloudFolder);
+    return () => window.removeEventListener(FOLDERS_CHANGED_EVENT, loadCloudFolder);
+  }, [isCloudFolders, presetFavorite, folderIdFromUrl]);
 
   useEffect(() => {
     if (!isManager || !presetFavorite) return;
@@ -125,20 +124,31 @@ function SampleBrowserInner({
     if (selectedTags.length) params.set("tags", selectedTags.join(","));
     if (minRating && !presetRated) params.set("minRating", minRating);
     if (presetRated) params.set("rated", "true");
-    if (isLibraryDesktop && presetFavorite) {
+    if (isCloudFolders && presetFavorite) {
       const folderId = folderIdFromUrl ?? localFolderId;
       if (!folderId) {
         setSamples([]);
         setLoading(false);
         return;
       }
-      const ids = await listSampleIdsInFolder(folderId);
-      if (ids.length === 0) {
+      try {
+        const res = await fetch(`/api/folders/${encodeURIComponent(folderId)}/items`, {
+          cache: "no-store",
+        });
+        const data = (await res.json()) as { samples?: SampleListItem[] };
+        setSamples(
+          filterSamples(data.samples ?? [], {
+            query,
+            typeFilter,
+            categoryFilter,
+            selectedTags,
+          }),
+        );
+      } catch {
         setSamples([]);
-        setLoading(false);
-        return;
       }
-      params.set("sampleIds", ids.join(","));
+      setLoading(false);
+      return;
     } else if (folderIdFromUrl) {
       params.set("favoriteFolderId", folderIdFromUrl);
     } else if (isManager && presetFavorite && defaultFolderId) {
@@ -164,7 +174,7 @@ function SampleBrowserInner({
     presetDownloaded,
     folderIdFromUrl,
     isManager,
-    isLibraryDesktop,
+    isCloudFolders,
     defaultFolderId,
     localFolderId,
   ]);
@@ -267,6 +277,7 @@ function SampleBrowserInner({
           onMetaChange={search}
           onTagClick={toggleTag}
           copyFolder={copyFolder}
+          folderId={isCloudFolders && presetFavorite ? (folderIdFromUrl ?? localFolderId) : undefined}
         />
       )}
     </div>
