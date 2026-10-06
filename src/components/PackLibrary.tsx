@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { CloudUpload, Search, Settings2, Upload } from "lucide-react";
 import { PackCard, type PackCardData } from "@/components/PackCard";
 import { usePackSyncStatus } from "@/components/PackSyncStatus";
+import { StorageUsageCard } from "@/components/StorageUsageCard";
 import { useI18n } from "@/lib/i18n/context";
 import { isManagerModeClient } from "@/lib/app-mode-client";
 import { parseTagsJson } from "@/lib/utils";
@@ -115,6 +116,14 @@ export function PackLibrary({
           </div>
         )}
       </div>
+
+      {isAdmin && (!isManager || syncEnabled) && (
+        <StorageUsageCard
+          endpoint={isManager ? "/api/vps/storage" : "/api/admin/storage-usage"}
+          title="Espaço no VPS"
+          className="mb-6 max-w-2xl"
+        />
+      )}
 
       {packs.length > 0 && (
         <>

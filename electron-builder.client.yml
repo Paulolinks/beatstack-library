@@ -2,6 +2,8 @@ appId: com.beatstack.library
 productName: BeatStack Library
 copyright: Copyright © BeatStack
 artifactName: ${productName}-Setup-${version}.${ext}
+extraMetadata:
+  version: "1.3.3"
 npmRebuild: false
 nodeGypRebuild: false
 buildDependenciesFromSource: false
@@ -26,6 +28,20 @@ win:
         - x64
   publisherName: BeatStack
   signAndEditExecutable: false
+mac:
+  category: public.app-category.music
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  # Sem certificado Apple: assinatura ad-hoc (o Mac pede "Abrir mesmo assim" na 1ª vez)
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+dmg:
+  title: ${productName} ${version}
 nsis:
   oneClick: false
   perMachine: false

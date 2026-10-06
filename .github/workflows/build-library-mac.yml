@@ -1,0 +1,51 @@
+name: Instalador Mac (BeatStack Library)
+
+# Instalador .dmg só pode ser gerado num Mac — roda num Mac do GitHub.
+# Dispara ao enviar uma tag "library-mac-v*" (ex.: library-mac-v1.3.3) ou manualmente na aba Actions.
+on:
+  push:
+    tags:
+      - "library-mac-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar .dmg (Apple Silicon + Intel)
+        run: npx electron-builder --mac --config electron-builder.client.yml --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Guardar instaladores
+        uses: actions/upload-artifact@v4
+        with:
+          name: beatstack-library-mac
+          path: dist-electron/*.dmg
+
+      - name: Publicar na página de Releases
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: BeatStack Library para Mac (${{ github.ref_name }})
+          files: dist-electron/*.dmg
+          body: |
+            Baixe o arquivo do seu Mac:
+            - **mac-arm64.dmg** → MacBook com chip Apple (M1, M2, M3, M4…)
+            - **mac-x64.dmg** → MacBook Intel
+
+            Primeira vez: abra o .dmg, arraste o BeatStack Library para Aplicativos.
+            Se o Mac bloquear, vá em Ajustes do Sistema → Privacidade e Segurança → "Abrir mesmo assim".

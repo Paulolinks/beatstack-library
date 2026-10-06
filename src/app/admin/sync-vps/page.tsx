@@ -12,6 +12,7 @@ import {
   Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StorageUsageCard } from "@/components/StorageUsageCard";
 
 type PackRow = {
   id: string;
@@ -313,6 +314,15 @@ export default function SyncVpsPage() {
           {saving ? "Salvando…" : "Salvar conexão"}
         </button>
       </form>
+
+      {data?.config && (
+        <StorageUsageCard
+          key={`${data.packs?.filter((p) => p.onVps).length ?? 0}-${queueRunning ? 1 : 0}`}
+          endpoint="/api/vps/storage"
+          title="Espaço no VPS"
+          className="mb-6"
+        />
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <button

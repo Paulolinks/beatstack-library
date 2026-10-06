@@ -10,6 +10,7 @@ import {
   zipPackDirectory,
 } from "@/lib/sync-vps/zip-pack";
 import {
+  fetchRemoteFreeBytes,
   getVpsCookie,
   LegacyVpsUploadRequired,
   listRemotePacks,
@@ -24,6 +25,9 @@ import { CLOUD_SAVED_PACK_DESCRIPTION } from "@/lib/sync-vps/save-cloud-sample";
 export const notCloudSavedPack = {
   OR: [{ description: null }, { description: { not: CLOUD_SAVED_PACK_DESCRIPTION } }],
 };
+
+/** Folga mínima que precisa sobrar no VPS depois do upload (sistema, banco, outros apps). */
+const MIN_REMOTE_FREE_AFTER_UPLOAD = 3 * 1024 ** 3;
 
 function normalizePackName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
@@ -134,6 +138,15 @@ async function processQueue(): Promise<void> {
       updateItem(item.packId, {
         status: "failed",
         error: "Pack não encontrado localmente",
+      });
+      continue;
+    }
+
+    const remoteFree = await fetchRemoteFreeBytes(config);
+    if (remoteFree !== null && remoteFree < item.sizeBytes + MIN_REMOTE_FREE_AFTER_UPLOAD) {
+      updateItem(item.packId, {
+        status: "failed",
+        error: `Sem espaço no VPS: o pack tem ${formatBytes(item.sizeBytes)} e o VPS tem ${formatBytes(remoteFree)} livres. Exclua packs do VPS e tente de novo.`,
       });
       continue;
     }

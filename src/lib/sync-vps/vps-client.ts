@@ -87,6 +87,18 @@ export async function listRemotePacks(config: SyncVpsConfig): Promise<RemotePack
   return data.packs.map(mapRemotePack);
 }
 
+/** Bytes livres no disco do VPS; null se o VPS não tem a rota (versão antiga) ou falhou. */
+export async function fetchRemoteFreeBytes(config: SyncVpsConfig): Promise<number | null> {
+  try {
+    const res = await vpsFetch(config, "/api/admin/storage-usage?diskOnly=1");
+    if (!res.ok) return null;
+    const data = (await res.json()) as { freeBytes?: number };
+    return typeof data.freeBytes === "number" ? data.freeBytes : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function deleteRemotePack(
   config: SyncVpsConfig,
   remotePackId: string,

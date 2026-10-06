@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Cloud, HardDrive, Loader2, RefreshCw, Search, Trash2 } from "lucide-react";
 import type { CloudRemotePack } from "@/components/cloud/CloudSampleRow";
+import { StorageUsageCard } from "@/components/StorageUsageCard";
 
 type CloudPack = CloudRemotePack & { hasLocal: boolean };
 
@@ -111,6 +112,13 @@ export default function CloudPacksPage() {
           Atualizar
         </button>
       </div>
+
+      <StorageUsageCard
+        key={packs.length}
+        endpoint="/api/vps/storage"
+        title="Espaço no VPS"
+        className="mb-6 max-w-2xl"
+      />
 
       {message && (
         <div className="mb-4 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-200">

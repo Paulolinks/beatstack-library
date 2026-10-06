@@ -20,6 +20,7 @@ import {
   inferPackNameFromFolderPaths,
   writeFolderFilesToDir,
 } from "./extract";
+import { invalidateStorageUsage } from "@/lib/storage-usage";
 import { scanAndEnrichAudio } from "./scan";
 import { scanPresetBundles } from "./scan-presets";
 import {
@@ -298,6 +299,7 @@ export async function importPackFromArchive(
     if (extractDir && fs.existsSync(extractDir)) {
       fs.rmSync(extractDir, { recursive: true, force: true });
     }
+    invalidateStorageUsage();
 
     return {
       packId: pack.id,
@@ -378,5 +380,6 @@ export async function deletePack(packId: string): Promise<DeletePackResult> {
     }
   }
 
+  invalidateStorageUsage();
   return { deleted: true, name: pack.name, fileErrors };
 }
